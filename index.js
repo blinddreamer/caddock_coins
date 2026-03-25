@@ -65,17 +65,17 @@ async function initDB() {
     )
   `);
 
-const [rows] = await db.execute(`SELECT COUNT(*) as count FROM items`);
+  const [rows] = await db.execute(`SELECT COUNT(*) as count FROM items`);
 
-if (rows[0].count === 0) {
-  await db.execute(
-    `INSERT INTO items (name, cost) VALUES (?, ?)`,
-    ["Example Ship", 10]
-  );
+  if (rows[0].count === 0) {
+    await db.execute(`INSERT INTO items (name, cost) VALUES (?, ?)`, [
+      "Example Ship",
+      10,
+    ]);
 
-  console.log("🟡 Inserted default example item");
+    console.log("🟡 Inserted default example item");
+  }
 }
-
 // ===== DISCORD CLIENT =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
