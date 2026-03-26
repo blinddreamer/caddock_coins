@@ -68,6 +68,7 @@ async function initDB() {
   `);
 
   const [rows] = await db.execute(`SELECT COUNT(*) as count FROM items`);
+
   if (rows[0].count === 0) {
     await db.execute(`INSERT INTO items (name, cost) VALUES (?, ?)`, [
       "Example Ship",
@@ -118,21 +119,20 @@ async function getOrCreateUser(discordId) {
   return newUser[0];
 }
 
-// ===== CHECK INACTIVITY & ROLE =====
-async function checkInactivity(user, member) {
-  if (!user.last_earned) return user;
-
-  const diffDays = daysSince(user.last_earned);
-
-  // inactivity reset
-  if (diffDays >= INACTIVE_DAYS && user.points > 0) {
-    await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
-      user.discord_id,
-    ]);
-    user.points = 0;
+// Check inactivity & role removal
+async function checkInactivityAndRoles(member, user) {
+  // Reset points if inactive
+  if (user.last_earned) {
+    const diffDays = daysSince(user.last_earned);
+    if (diffDays >= INACTIVE_DAYS && user.points > 0) {
+      await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
+        user.discord_id,
+      ]);
+      user.points = 0;
+    }
   }
 
-  // remove points if role lost
+  // Reset points if member lost REQUIRED_ROLE
   if (!hasRole(member, REQUIRED_ROLE) && user.points > 0) {
     await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
       user.discord_id,
@@ -146,10 +146,12 @@ async function checkInactivity(user, member) {
 // ===== DYNAMIC STATUS =====
 async function updateStatus() {
   try {
+    // pending deliveries
     const [pending] = await db.execute(
       `SELECT COUNT(*) as count FROM purchases WHERE delivered = 0`,
     );
 
+    // ISK given this month
     const [isk] = await db.execute(`
       SELECT COALESCE(SUM(items.cost), 0) as total
       FROM purchases
@@ -217,7 +219,7 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== BUTTONS =====
   if (interaction.isButton()) {
-    // DELIVER
+    // Delivered button
     if (interaction.customId.startsWith("delivered_")) {
       if (!hasRole(member, ADMIN_ROLE))
         return interaction.reply({ content: "Nope.", ephemeral: true });
@@ -229,24 +231,28 @@ client.on("interactionCreate", async (interaction) => {
         [userId, itemId],
       );
 
-      return interaction.update({ content: "✅ Delivered", components: [] });
+      return interaction.update({
+        content: "✅ Delivered",
+        components: [],
+      });
     }
 
-    // BUY
+    // Buy button
     if (interaction.customId.startsWith("buy_")) {
       try {
         const daysInCorp = daysSince(member.joinedAt);
 
         if (daysInCorp < MIN_DAYS_IN_CORP) {
           return interaction.reply({
-            content: `⛔ You can make purchases after ${MIN_DAYS_IN_CORP} days in corp.\nCurrent: ${Math.floor(daysInCorp)} days.`,
+            content: `⛔ You need to be at least ${MIN_DAYS_IN_CORP} days in the corporation before making purchases.\nCurrent: ${Math.floor(daysInCorp)} days.`,
             ephemeral: true,
           });
         }
 
         const itemId = interaction.customId.split("_")[1];
+
         let user = await getOrCreateUser(interaction.user.id);
-        user = await checkInactivity(user, member);
+        user = await checkInactivityAndRoles(member, user);
 
         const [items] = await db.execute(`SELECT * FROM items WHERE id = ?`, [
           itemId,
@@ -262,6 +268,7 @@ client.on("interactionCreate", async (interaction) => {
 
         if (user.last_purchase) {
           const diffDays = daysSince(user.last_purchase);
+
           if (diffDays < PURCHASE_COOLDOWN_DAYS) {
             return interaction.reply({
               content: `⛔ You can make one purchase every ${PURCHASE_COOLDOWN_DAYS} days.\nPlease wait ${Math.ceil(PURCHASE_COOLDOWN_DAYS - diffDays)} more day(s).`,
@@ -307,18 +314,15 @@ client.on("interactionCreate", async (interaction) => {
         }
       } catch (err) {
         console.error(err);
-        return interaction.reply({
-          content: "Error processing purchase",
-          ephemeral: true,
-        });
+        interaction.reply({ content: "Error", ephemeral: true });
       }
     }
+
     return;
   }
 
   if (!interaction.isChatInputCommand()) return;
 
-  // ===== RESTRICT COMMANDS =====
   if (
     interaction.commandName !== "addcoins" &&
     interaction.commandName !== "leaderboard" &&
@@ -335,6 +339,15 @@ client.on("interactionCreate", async (interaction) => {
     const target = interaction.options.getUser("user");
     const amount = interaction.options.getInteger("amount");
 
+    const targetMember = await interaction.guild.members.fetch(target.id);
+
+    if (!hasRole(targetMember, REQUIRED_ROLE)) {
+      return interaction.reply({
+        content: `❌ ${target.username} does not have the required role.`,
+        ephemeral: true,
+      });
+    }
+
     await getOrCreateUser(target.id);
 
     await db.execute(
@@ -350,7 +363,7 @@ client.on("interactionCreate", async (interaction) => {
   // ===== SHOP =====
   if (interaction.commandName === "shop") {
     let user = await getOrCreateUser(interaction.user.id);
-    user = await checkInactivity(user, member);
+    user = await checkInactivityAndRoles(member, user);
 
     const [items] = await db.execute(`SELECT * FROM items`);
 
@@ -400,6 +413,7 @@ client.on("interactionCreate", async (interaction) => {
 // ===== START =====
 client.once("ready", () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
+
   updateStatus();
   setInterval(updateStatus, 1800000); // 30 minutes
 });
