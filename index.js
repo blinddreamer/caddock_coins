@@ -92,7 +92,7 @@ function daysSince(date) {
   return (new Date() - new Date(date)) / (1000 * 60 * 60 * 24);
 }
 
-function formatISK(value) {
+function formatAmount(value) {
   if (value >= 1_000_000_000) return (value / 1_000_000_000).toFixed(1) + "B";
   if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + "M";
   if (value >= 1_000) return (value / 1_000).toFixed(1) + "K";
@@ -151,8 +151,8 @@ async function updateStatus() {
       `SELECT COUNT(*) as count FROM purchases WHERE delivered = 0`,
     );
 
-    // ISK given this month
-    const [isk] = await db.execute(`
+    // coins spent this month
+    const [coins] = await db.execute(`
       SELECT COALESCE(SUM(items.cost), 0) as total
       FROM purchases
       JOIN items ON purchases.item_id = items.id
@@ -160,12 +160,12 @@ async function updateStatus() {
       AND YEAR(purchases.date) = YEAR(NOW())
     `);
 
-    const formattedISK = formatISK(isk[0].total);
+    const formattedCoins = formatAmount(coins[0].total);
 
     const statuses = [
       { name: "watching for cheap dreads", type: ActivityType.Watching },
       {
-        name: `gave away ${formattedISK} ISK this month`,
+        name: `gave away ${formattedCoins} coins this month`,
         type: ActivityType.Watching,
       },
       {
