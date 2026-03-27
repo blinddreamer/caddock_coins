@@ -163,7 +163,7 @@ async function updateStatus() {
     const formattedCoins = formatAmount(coins[0].total);
 
     const statuses = [
-      { name: "watching for cheap dreads", type: ActivityType.Watching },
+      { name: "buying cheap dreads", type: ActivityType.Watching },
       {
         name: `gave away ${formattedCoins} coins this month`,
         type: ActivityType.Watching,
@@ -244,7 +244,7 @@ client.on("interactionCreate", async (interaction) => {
 
         if (daysInCorp < MIN_DAYS_IN_CORP) {
           return interaction.reply({
-            content: `⛔ You need to be at least ${MIN_DAYS_IN_CORP} days in the corporation before making purchases.\nCurrent: ${Math.floor(daysInCorp)} days.`,
+            content: `⛔ You need to be at least ${MIN_DAYS_IN_CORP} days in the corporation & discord before making purchases.\nCurrent: ${Math.floor(daysInCorp)} days.`,
             ephemeral: true,
           });
         }
