@@ -236,10 +236,26 @@ client.on("interactionCreate", async (interaction) => {
           [user.id, item.id],
         );
 
-        interaction.reply({
+        await interaction.reply({
           content: `✅ Purchased ${item.name}`,
           ephemeral: true,
         });
+
+        // ===== LOG CHANNEL =====
+        const channel = client.channels.cache.get(LOG_CHANNEL_ID);
+        if (channel) {
+          const rowBtn = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`delivered_${user.id}_${item.id}`)
+              .setLabel("Mark Delivered")
+              .setStyle(ButtonStyle.Success),
+          );
+
+          channel.send({
+            content: `📦 ${item.name} purchased by <@${user.discord_id}>`,
+            components: [rowBtn],
+          });
+        }
       } catch (e) {
         console.error(e);
       }
@@ -258,7 +274,7 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    await interaction.deferReply({ ephemeral: true }); // <--- FIX TIMEOUT
+    await interaction.deferReply({ ephemeral: true });
 
     try {
       const target = interaction.options.getUser("user");
