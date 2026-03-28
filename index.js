@@ -249,6 +249,38 @@ client.on("interactionCreate", async (interaction) => {
 
   if (!interaction.isChatInputCommand()) return;
 
+  // ===== ADD COINS =====
+  if (interaction.commandName === "addcoins") {
+    if (!hasRole(member, ADMIN_ROLE)) {
+      return interaction.reply({
+        content: "⛔ You are not allowed to use this.",
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply({ ephemeral: true }); // <--- FIX TIMEOUT
+
+    try {
+      const target = interaction.options.getUser("user");
+      const amount = interaction.options.getInteger("amount");
+
+      let user = await getOrCreateUser(target.id);
+
+      await db.execute(
+        `UPDATE users SET points = points + ?, last_earned = NOW() WHERE discord_id = ?`,
+        [amount, target.id],
+      );
+
+      await interaction.editReply(
+        `✅ Added **${amount} coins** to <@${target.id}>`,
+      );
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply("❌ Something broke.");
+    }
+    return;
+  }
+
   // ===== SHOP =====
   if (interaction.commandName === "shop") {
     let user = await getOrCreateUser(interaction.user.id);
