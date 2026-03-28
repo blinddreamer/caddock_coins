@@ -199,6 +199,19 @@ client.on("interactionCreate", async (interaction) => {
 
         const item = items[0];
 
+        // 30-DAY COOLDOWN CHECK
+        if (user.last_purchase) {
+          const diffDays = daysSince(user.last_purchase);
+          if (diffDays < PURCHASE_COOLDOWN_DAYS) {
+            return interaction.reply({
+              content: `⛔ You can make one purchase every ${PURCHASE_COOLDOWN_DAYS} days.\nPlease wait ${Math.ceil(
+                PURCHASE_COOLDOWN_DAYS - diffDays,
+              )} more day(s).`,
+              ephemeral: true,
+            });
+          }
+        }
+
         // LIFETIME CHECK
         if (item.lifetime === 1) {
           const [existing] = await db.execute(
