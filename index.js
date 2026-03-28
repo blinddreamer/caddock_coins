@@ -53,7 +53,9 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS items (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(100),
-      cost INT
+      cost INT,
+      category VARCHAR(50) DEFAULT 'normal',
+      lifetime TINYINT DEFAULT 0
     )
   `);
 
@@ -70,10 +72,10 @@ async function initDB() {
   const [rows] = await db.execute(`SELECT COUNT(*) as count FROM items`);
 
   if (rows[0].count === 0) {
-    await db.execute(`INSERT INTO items (name, cost) VALUES (?, ?)`, [
-      "Example Ship",
-      10,
-    ]);
+    await db.execute(
+      `INSERT INTO items (name, cost, category, lifetime) VALUES (?, ?, ?, ?)`,
+      ["Example Ship", 10, "normal", 0],
+    );
     console.log("🟡 Inserted default example item");
   }
 }
@@ -119,9 +121,7 @@ async function getOrCreateUser(discordId) {
   return newUser[0];
 }
 
-// Check inactivity & role removal
 async function checkInactivityAndRoles(member, user) {
-  // Reset points if inactive
   if (user.last_earned) {
     const diffDays = daysSince(user.last_earned);
     if (diffDays >= INACTIVE_DAYS && user.points > 0) {
@@ -132,7 +132,6 @@ async function checkInactivityAndRoles(member, user) {
     }
   }
 
-  // Reset points if member lost REQUIRED_ROLE
   if (!hasRole(member, REQUIRED_ROLE) && user.points > 0) {
     await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
       user.discord_id,
@@ -143,15 +142,13 @@ async function checkInactivityAndRoles(member, user) {
   return user;
 }
 
-// ===== DYNAMIC STATUS =====
+// ===== STATUS =====
 async function updateStatus() {
   try {
-    // pending deliveries
     const [pending] = await db.execute(
       `SELECT COUNT(*) as count FROM purchases WHERE delivered = 0`,
     );
 
-    // coins spent this month
     const [coins] = await db.execute(`
       SELECT COALESCE(SUM(items.cost), 0) as total
       FROM purchases
@@ -200,8 +197,8 @@ const commands = [
   new SlashCommandBuilder().setName("leaderboard").setDescription("Top users"),
 ].map((c) => c.toJSON());
 
-// ===== REGISTER COMMANDS =====
 const rest = new REST({ version: "10" }).setToken(TOKEN);
+
 (async () => {
   try {
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
@@ -219,7 +216,7 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== BUTTONS =====
   if (interaction.isButton()) {
-    // Delivered button
+    // Delivered
     if (interaction.customId.startsWith("delivered_")) {
       if (!hasRole(member, ADMIN_ROLE))
         return interaction.reply({ content: "Nope.", ephemeral: true });
@@ -237,14 +234,16 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // Buy button
+    // ===== BUY =====
     if (interaction.customId.startsWith("buy_")) {
       try {
         const daysInCorp = daysSince(member.joinedAt);
 
         if (daysInCorp < MIN_DAYS_IN_CORP) {
           return interaction.reply({
-            content: `⛔ You need to be at least ${MIN_DAYS_IN_CORP} days in the corporation & discord before making purchases.\nCurrent: ${Math.floor(daysInCorp)} days.`,
+            content: `⛔ You need ${MIN_DAYS_IN_CORP} days.\nCurrent: ${Math.floor(
+              daysInCorp,
+            )}`,
             ephemeral: true,
           });
         }
@@ -266,12 +265,36 @@ client.on("interactionCreate", async (interaction) => {
 
         const item = items[0];
 
+        // ===== LIFETIME CATEGORY CHECK =====
+        if (item.lifetime === 1) {
+          const [existing] = await db.execute(
+            `SELECT purchases.id 
+             FROM purchases
+             JOIN items ON purchases.item_id = items.id
+             WHERE purchases.user_id = ? 
+             AND items.category = ?
+             AND items.lifetime = 1
+             LIMIT 1`,
+            [user.id, item.category],
+          );
+
+          if (existing.length > 0) {
+            return interaction.reply({
+              content: `⛔ You already claimed your one-time **${item.category}** reward.`,
+              ephemeral: true,
+            });
+          }
+        }
+
+        // cooldown
         if (user.last_purchase) {
           const diffDays = daysSince(user.last_purchase);
 
           if (diffDays < PURCHASE_COOLDOWN_DAYS) {
             return interaction.reply({
-              content: `⛔ You can make one purchase every ${PURCHASE_COOLDOWN_DAYS} days.\nPlease wait ${Math.ceil(PURCHASE_COOLDOWN_DAYS - diffDays)} more day(s).`,
+              content: `⛔ Wait ${Math.ceil(
+                PURCHASE_COOLDOWN_DAYS - diffDays,
+              )} days.`,
               ephemeral: true,
             });
           }
@@ -343,7 +366,7 @@ client.on("interactionCreate", async (interaction) => {
 
     if (!hasRole(targetMember, REQUIRED_ROLE)) {
       return interaction.reply({
-        content: `❌ ${target.username} does not have the required role.`,
+        content: `❌ ${target.username} missing role.`,
         ephemeral: true,
       });
     }
@@ -371,7 +394,14 @@ client.on("interactionCreate", async (interaction) => {
       title: "🛒 Caddock Shop",
       description:
         `You have **${user.points} coins**\n\n` +
-        items.map((i) => `• ${i.name} — ${i.cost}`).join("\n"),
+        items
+          .map(
+            (i) =>
+              `• ${i.name} — ${i.cost}${
+                i.lifetime ? ` 🔒 (one-time ${i.category})` : ""
+              }`,
+          )
+          .join("\n"),
       color: 0xf1c40f,
     };
 
@@ -415,7 +445,7 @@ client.once("ready", () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
 
   updateStatus();
-  setInterval(updateStatus, 1800000); // 30 minutes
+  setInterval(updateStatus, 1800000);
 });
 
 initDB().then(() => client.login(TOKEN));
