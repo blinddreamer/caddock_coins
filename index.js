@@ -76,11 +76,10 @@ async function initDB() {
       `INSERT INTO items (name, cost, category, lifetime) VALUES (?, ?, ?, ?)`,
       ["Example Ship", 10, "normal", 0],
     );
-    console.log("🟡 Inserted default example item");
   }
 }
 
-// ===== DISCORD CLIENT =====
+// ===== CLIENT =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
@@ -92,13 +91,6 @@ function hasRole(member, roleName) {
 
 function daysSince(date) {
   return (new Date() - new Date(date)) / (1000 * 60 * 60 * 24);
-}
-
-function formatAmount(value) {
-  if (value >= 1_000_000_000) return (value / 1_000_000_000).toFixed(1) + "B";
-  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + "M";
-  if (value >= 1_000) return (value / 1_000).toFixed(1) + "K";
-  return value.toString();
 }
 
 async function getOrCreateUser(discordId) {
@@ -123,8 +115,7 @@ async function getOrCreateUser(discordId) {
 
 async function checkInactivityAndRoles(member, user) {
   if (user.last_earned) {
-    const diffDays = daysSince(user.last_earned);
-    if (diffDays >= INACTIVE_DAYS && user.points > 0) {
+    if (daysSince(user.last_earned) >= INACTIVE_DAYS && user.points > 0) {
       await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
         user.discord_id,
       ]);
@@ -149,24 +140,10 @@ async function updateStatus() {
       `SELECT COUNT(*) as count FROM purchases WHERE delivered = 0`,
     );
 
-    const [coins] = await db.execute(`
-      SELECT COALESCE(SUM(items.cost), 0) as total
-      FROM purchases
-      JOIN items ON purchases.item_id = items.id
-      WHERE MONTH(purchases.date) = MONTH(NOW())
-      AND YEAR(purchases.date) = YEAR(NOW())
-    `);
-
-    const formattedCoins = formatAmount(coins[0].total);
-
     const statuses = [
       { name: "buying cheap dreads", type: ActivityType.Watching },
       {
-        name: `gave away ${formattedCoins} coins this month`,
-        type: ActivityType.Watching,
-      },
-      {
-        name: `${pending[0].count} pending deliveries queue`,
+        name: `${pending[0].count} pending deliveries`,
         type: ActivityType.Watching,
       },
     ];
@@ -177,9 +154,7 @@ async function updateStatus() {
       activities: [random],
       status: "online",
     });
-  } catch (err) {
-    console.error("Status update failed:", err);
-  }
+  } catch {}
 }
 
 // ===== COMMANDS =====
@@ -200,14 +175,9 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  try {
-    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-      body: commands,
-    });
-    console.log("✅ Commands registered");
-  } catch (err) {
-    console.error(err);
-  }
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+    body: commands,
+  });
 })();
 
 // ===== INTERACTIONS =====
@@ -216,38 +186,9 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== BUTTONS =====
   if (interaction.isButton()) {
-    // Delivered
-    if (interaction.customId.startsWith("delivered_")) {
-      if (!hasRole(member, ADMIN_ROLE))
-        return interaction.reply({ content: "Nope.", ephemeral: true });
-
-      const [, userId, itemId] = interaction.customId.split("_");
-
-      await db.execute(
-        `UPDATE purchases SET delivered = 1 WHERE user_id = ? AND item_id = ?`,
-        [userId, itemId],
-      );
-
-      return interaction.update({
-        content: "✅ Delivered",
-        components: [],
-      });
-    }
-
-    // ===== BUY =====
+    // BUY
     if (interaction.customId.startsWith("buy_")) {
       try {
-        const daysInCorp = daysSince(member.joinedAt);
-
-        if (daysInCorp < MIN_DAYS_IN_CORP) {
-          return interaction.reply({
-            content: `⛔ You need ${MIN_DAYS_IN_CORP} days.\nCurrent: ${Math.floor(
-              daysInCorp,
-            )}`,
-            ephemeral: true,
-          });
-        }
-
         const itemId = interaction.customId.split("_")[1];
 
         let user = await getOrCreateUser(interaction.user.id);
@@ -257,44 +198,20 @@ client.on("interactionCreate", async (interaction) => {
           itemId,
         ]);
 
-        if (!items.length)
-          return interaction.reply({
-            content: "Item not found",
-            ephemeral: true,
-          });
-
         const item = items[0];
 
-        // ===== LIFETIME CATEGORY CHECK =====
+        // lifetime check
         if (item.lifetime === 1) {
           const [existing] = await db.execute(
-            `SELECT purchases.id 
-             FROM purchases
+            `SELECT id FROM purchases 
              JOIN items ON purchases.item_id = items.id
-             WHERE purchases.user_id = ? 
-             AND items.category = ?
-             AND items.lifetime = 1
-             LIMIT 1`,
+             WHERE user_id = ? AND category = ? AND lifetime = 1 LIMIT 1`,
             [user.id, item.category],
           );
 
-          if (existing.length > 0) {
+          if (existing.length) {
             return interaction.reply({
-              content: `⛔ You already claimed your one-time **${item.category}** reward.`,
-              ephemeral: true,
-            });
-          }
-        }
-
-        // cooldown
-        if (user.last_purchase) {
-          const diffDays = daysSince(user.last_purchase);
-
-          if (diffDays < PURCHASE_COOLDOWN_DAYS) {
-            return interaction.reply({
-              content: `⛔ Wait ${Math.ceil(
-                PURCHASE_COOLDOWN_DAYS - diffDays,
-              )} days.`,
+              content: `⛔ One-time ${item.category} already used.`,
               ephemeral: true,
             });
           }
@@ -307,7 +224,7 @@ client.on("interactionCreate", async (interaction) => {
           });
 
         await db.execute(
-          `UPDATE users SET points = points - ?, last_earned = NOW(), last_purchase = NOW() WHERE discord_id = ?`,
+          `UPDATE users SET points = points - ?, last_purchase = NOW() WHERE discord_id = ?`,
           [item.cost, user.discord_id],
         );
 
@@ -316,134 +233,83 @@ client.on("interactionCreate", async (interaction) => {
           [user.id, item.id],
         );
 
-        await interaction.reply({
-          content: `✅ Purchased **${item.name}**`,
+        interaction.reply({
+          content: `✅ Purchased ${item.name}`,
           ephemeral: true,
         });
-
-        const channel = client.channels.cache.get(LOG_CHANNEL_ID);
-        if (channel) {
-          const rowBtn = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`delivered_${user.id}_${item.id}`)
-              .setLabel("Mark Delivered")
-              .setStyle(ButtonStyle.Success),
-          );
-
-          channel.send({
-            content: `📦 ${item.name} for <@${user.discord_id}>`,
-            components: [rowBtn],
-          });
-        }
-      } catch (err) {
-        console.error(err);
-        interaction.reply({ content: "Error", ephemeral: true });
+      } catch (e) {
+        console.error(e);
       }
     }
-
     return;
   }
 
   if (!interaction.isChatInputCommand()) return;
-
-  if (
-    interaction.commandName !== "addcoins" &&
-    interaction.commandName !== "leaderboard" &&
-    !hasRole(member, REQUIRED_ROLE)
-  ) {
-    return interaction.reply({ content: "D-SCO only", ephemeral: true });
-  }
-
-  // ===== ADD COINS =====
-  if (interaction.commandName === "addcoins") {
-    if (!hasRole(member, ADMIN_ROLE))
-      return interaction.reply({ content: "Nope", ephemeral: true });
-
-    const target = interaction.options.getUser("user");
-    const amount = interaction.options.getInteger("amount");
-
-    const targetMember = await interaction.guild.members.fetch(target.id);
-
-    if (!hasRole(targetMember, REQUIRED_ROLE)) {
-      return interaction.reply({
-        content: `❌ ${target.username} missing role.`,
-        ephemeral: true,
-      });
-    }
-
-    await getOrCreateUser(target.id);
-
-    await db.execute(
-      `UPDATE users SET points = points + ?, last_earned = NOW() WHERE discord_id = ?`,
-      [amount, target.id],
-    );
-
-    return interaction.reply({
-      content: `+${amount} coins to ${target.username}`,
-    });
-  }
 
   // ===== SHOP =====
   if (interaction.commandName === "shop") {
     let user = await getOrCreateUser(interaction.user.id);
     user = await checkInactivityAndRoles(member, user);
 
-    const [items] = await db.execute(`SELECT * FROM items`);
+    const [items] = await db.execute(`SELECT * FROM items ORDER BY category`);
+
+    // group
+    const grouped = {};
+    items.forEach((i) => {
+      if (!grouped[i.category]) grouped[i.category] = [];
+      grouped[i.category].push(i);
+    });
+
+    // embed
+    let desc = `You have **${user.points} coins**\n\n`;
+
+    for (const cat in grouped) {
+      desc += `**${cat.toUpperCase()}**\n`;
+      grouped[cat].forEach((i) => {
+        desc += `• ${i.name} — ${i.cost}${i.lifetime ? " 🔒" : ""}\n`;
+      });
+      desc += "\n";
+    }
 
     const embed = {
-      title: "🛒 Caddock Shop",
-      description:
-        `You have **${user.points} coins**\n\n` +
-        items
-          .map(
-            (i) =>
-              `• ${i.name} — ${i.cost}${
-                i.lifetime ? ` 🔒 (one-time ${i.category})` : ""
-              }`,
-          )
-          .join("\n"),
+      title: "🛒 Shop",
+      description: desc,
       color: 0xf1c40f,
     };
 
+    // buttons grouped 4 per row per category
     const rows = [];
-    let row = new ActionRowBuilder();
 
-    items.forEach((item, i) => {
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`buy_${item.id}`)
-          .setLabel(item.name)
-          .setStyle(ButtonStyle.Primary),
-      );
+    for (const cat in grouped) {
+      let row = new ActionRowBuilder();
+      let count = 0;
 
-      if (row.components.length === 5 || i === items.length - 1) {
-        rows.push(row);
-        row = new ActionRowBuilder();
-      }
-    });
+      grouped[cat].forEach((item) => {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`buy_${item.id}`)
+            .setLabel(item.name)
+            .setStyle(ButtonStyle.Primary),
+        );
+
+        count++;
+
+        if (count === 4) {
+          rows.push(row);
+          row = new ActionRowBuilder();
+          count = 0;
+        }
+      });
+
+      if (row.components.length > 0) rows.push(row);
+    }
 
     interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
-  }
-
-  // ===== LEADERBOARD =====
-  if (interaction.commandName === "leaderboard") {
-    const [rows] = await db.execute(
-      `SELECT discord_id, points FROM users ORDER BY points DESC LIMIT 10`,
-    );
-
-    let text = "**🏆 Leaderboard**\n";
-    rows.forEach(
-      (r, i) => (text += `${i + 1}. <@${r.discord_id}> — ${r.points}\n`),
-    );
-
-    interaction.reply({ content: text });
   }
 });
 
 // ===== START =====
 client.once("ready", () => {
-  console.log(`🚀 Logged in as ${client.user.tag}`);
-
   updateStatus();
   setInterval(updateStatus, 1800000);
 });
