@@ -186,7 +186,6 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== BUTTONS =====
   if (interaction.isButton()) {
-    // BUY
     if (interaction.customId.startsWith("buy_")) {
       try {
         const itemId = interaction.customId.split("_")[1];
@@ -200,18 +199,22 @@ client.on("interactionCreate", async (interaction) => {
 
         const item = items[0];
 
-        // lifetime check
+        // ===== LIFETIME CHECK =====
         if (item.lifetime === 1) {
           const [existing] = await db.execute(
-            `SELECT id FROM purchases 
+            `SELECT purchases.id 
+             FROM purchases
              JOIN items ON purchases.item_id = items.id
-             WHERE user_id = ? AND category = ? AND lifetime = 1 LIMIT 1`,
+             WHERE purchases.user_id = ? 
+             AND items.category = ?
+             AND items.lifetime = 1
+             LIMIT 1`,
             [user.id, item.category],
           );
 
-          if (existing.length) {
+          if (existing.length > 0) {
             return interaction.reply({
-              content: `⛔ One-time ${item.category} already used.`,
+              content: `⛔ You already claimed your one-off ${item.category}.`,
               ephemeral: true,
             });
           }
@@ -253,21 +256,53 @@ client.on("interactionCreate", async (interaction) => {
 
     const [items] = await db.execute(`SELECT * FROM items ORDER BY category`);
 
-    // group
+    // ===== GROUP =====
     const grouped = {};
     items.forEach((i) => {
       if (!grouped[i.category]) grouped[i.category] = [];
       grouped[i.category].push(i);
     });
 
-    // embed
+    // ===== CHECK USED LIFETIME =====
+    const usedLifetime = {};
+    for (const cat in grouped) {
+      const hasLifetime = grouped[cat].some((i) => i.lifetime === 1);
+
+      if (!hasLifetime) {
+        usedLifetime[cat] = false;
+        continue;
+      }
+
+      const [rows] = await db.execute(
+        `SELECT purchases.id 
+         FROM purchases
+         JOIN items ON purchases.item_id = items.id
+         WHERE purchases.user_id = ?
+         AND items.category = ?
+         AND items.lifetime = 1
+         LIMIT 1`,
+        [user.id, cat],
+      );
+
+      usedLifetime[cat] = rows.length > 0;
+    }
+
+    // ===== EMBED =====
     let desc = `You have **${user.points} coins**\n\n`;
 
     for (const cat in grouped) {
-      desc += `**${cat.toUpperCase()}**\n`;
+      if (usedLifetime[cat]) continue;
+
+      const isLifetimeCategory = grouped[cat].some((i) => i.lifetime === 1);
+
+      desc += `**${cat.toUpperCase()}${
+        isLifetimeCategory ? " (ONE OFF)" : ""
+      }**\n`;
+
       grouped[cat].forEach((i) => {
         desc += `• ${i.name} — ${i.cost}${i.lifetime ? " 🔒" : ""}\n`;
       });
+
       desc += "\n";
     }
 
@@ -277,10 +312,12 @@ client.on("interactionCreate", async (interaction) => {
       color: 0xf1c40f,
     };
 
-    // buttons grouped 4 per row per category
+    // ===== BUTTONS =====
     const rows = [];
 
     for (const cat in grouped) {
+      if (usedLifetime[cat]) continue;
+
       let row = new ActionRowBuilder();
       let count = 0;
 
@@ -305,6 +342,20 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
+  }
+
+  // ===== LEADERBOARD =====
+  if (interaction.commandName === "leaderboard") {
+    const [rows] = await db.execute(
+      `SELECT discord_id, points FROM users ORDER BY points DESC LIMIT 10`,
+    );
+
+    let text = "**🏆 Leaderboard**\n";
+    rows.forEach(
+      (r, i) => (text += `${i + 1}. <@${r.discord_id}> — ${r.points}\n`),
+    );
+
+    interaction.reply({ content: text });
   }
 });
 
