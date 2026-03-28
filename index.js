@@ -70,7 +70,6 @@ async function initDB() {
   `);
 
   const [rows] = await db.execute(`SELECT COUNT(*) as count FROM items`);
-
   if (rows[0].count === 0) {
     await db.execute(
       `INSERT INTO items (name, cost, category, lifetime) VALUES (?, ?, ?, ?)`,
@@ -186,6 +185,7 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== BUTTONS =====
   if (interaction.isButton()) {
+    // ===== BUY =====
     if (interaction.customId.startsWith("buy_")) {
       try {
         const itemId = interaction.customId.split("_")[1];
@@ -199,7 +199,7 @@ client.on("interactionCreate", async (interaction) => {
 
         const item = items[0];
 
-        // ===== LIFETIME CHECK =====
+        // LIFETIME CHECK
         if (item.lifetime === 1) {
           const [existing] = await db.execute(
             `SELECT purchases.id 
@@ -260,6 +260,30 @@ client.on("interactionCreate", async (interaction) => {
         console.error(e);
       }
     }
+
+    // ===== MARK DELIVERED =====
+    if (interaction.customId.startsWith("delivered_")) {
+      if (!hasRole(member, ADMIN_ROLE))
+        return interaction.reply({ content: "Nope.", ephemeral: true });
+
+      const [, userId, itemId] = interaction.customId.split("_");
+
+      await db.execute(
+        `UPDATE purchases SET delivered = 1 WHERE user_id = ? AND item_id = ?`,
+        [userId, itemId],
+      );
+
+      // EDIT LOG MESSAGE
+      if (interaction.message) {
+        await interaction.message.edit({
+          content: `${interaction.message.content} ✅ Delivered`,
+          components: [],
+        });
+      }
+
+      await interaction.reply({ content: "Marked delivered", ephemeral: true });
+    }
+
     return;
   }
 
@@ -267,12 +291,8 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== ADD COINS =====
   if (interaction.commandName === "addcoins") {
-    if (!hasRole(member, ADMIN_ROLE)) {
-      return interaction.reply({
-        content: "⛔ You are not allowed to use this.",
-        ephemeral: true,
-      });
-    }
+    if (!hasRole(member, ADMIN_ROLE))
+      return interaction.reply({ content: "⛔ Not allowed.", ephemeral: true });
 
     await interaction.deferReply({ ephemeral: true });
 
@@ -304,18 +324,16 @@ client.on("interactionCreate", async (interaction) => {
 
     const [items] = await db.execute(`SELECT * FROM items ORDER BY category`);
 
-    // ===== GROUP =====
     const grouped = {};
     items.forEach((i) => {
       if (!grouped[i.category]) grouped[i.category] = [];
       grouped[i.category].push(i);
     });
 
-    // ===== CHECK USED LIFETIME =====
+    // CHECK USED LIFETIME
     const usedLifetime = {};
     for (const cat in grouped) {
       const hasLifetime = grouped[cat].some((i) => i.lifetime === 1);
-
       if (!hasLifetime) {
         usedLifetime[cat] = false;
         continue;
@@ -335,22 +353,17 @@ client.on("interactionCreate", async (interaction) => {
       usedLifetime[cat] = rows.length > 0;
     }
 
-    // ===== EMBED =====
+    // EMBED
     let desc = `You have **${user.points} coins**\n\n`;
-
     for (const cat in grouped) {
       if (usedLifetime[cat]) continue;
 
       const isLifetimeCategory = grouped[cat].some((i) => i.lifetime === 1);
-
-      desc += `**${cat.toUpperCase()}${
-        isLifetimeCategory ? " (ONE OFF)" : ""
-      }**\n`;
+      desc += `**${cat.toUpperCase()}${isLifetimeCategory ? " (ONE OFF)" : ""}**\n`;
 
       grouped[cat].forEach((i) => {
         desc += `• ${i.name} — ${i.cost}${i.lifetime ? " 🔒" : ""}\n`;
       });
-
       desc += "\n";
     }
 
@@ -360,15 +373,13 @@ client.on("interactionCreate", async (interaction) => {
       color: 0xf1c40f,
     };
 
-    // ===== BUTTONS =====
+    // BUTTONS
     const rows = [];
-
     for (const cat in grouped) {
       if (usedLifetime[cat]) continue;
 
       let row = new ActionRowBuilder();
       let count = 0;
-
       grouped[cat].forEach((item) => {
         row.addComponents(
           new ButtonBuilder()
@@ -376,16 +387,13 @@ client.on("interactionCreate", async (interaction) => {
             .setLabel(item.name)
             .setStyle(ButtonStyle.Primary),
         );
-
         count++;
-
         if (count === 4) {
           rows.push(row);
           row = new ActionRowBuilder();
           count = 0;
         }
       });
-
       if (row.components.length > 0) rows.push(row);
     }
 
@@ -402,13 +410,13 @@ client.on("interactionCreate", async (interaction) => {
     rows.forEach(
       (r, i) => (text += `${i + 1}. <@${r.discord_id}> — ${r.points}\n`),
     );
-
     interaction.reply({ content: text });
   }
 });
 
 // ===== START =====
 client.once("ready", () => {
+  console.log(`🚀 Logged in as ${client.user.tag}`);
   updateStatus();
   setInterval(updateStatus, 1800000);
 });
