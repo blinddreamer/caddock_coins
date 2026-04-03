@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="refresh" content="3600">
   <title>D-SCO Coins · EVE Online DKP Leaderboard</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -18,6 +19,33 @@
       font-family: 'Exo 2', 'Segoe UI', sans-serif;
       min-height: 100vh;
       padding: 52px 20px 64px;
+    }
+
+    /* ── BACK BUTTON ── */
+    .back-wrap {
+      max-width: 640px;
+      margin: 0 auto 28px;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #888;
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      padding: 7px 14px;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .back-btn:hover {
+      color: #cc2222;
+      border-color: rgba(200, 30, 30, 0.4);
+      background: rgba(140, 10, 10, 0.12);
     }
 
     /* ── HEADER ── */
@@ -169,6 +197,13 @@
   </style>
 </head>
 <body>
+
+  <div class="back-wrap">
+    <a href="https://d-sco.rocks" class="back-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/></svg>
+      Back
+    </a>
+  </div>
 
   <div class="header">
     <img src="/logo.png" alt="Corporation Logo" class="logo">

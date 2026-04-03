@@ -464,12 +464,38 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
+// ===== INACTIVITY AUDIT =====
+async function auditAllUsers() {
+  const guild = client.guilds.cache.get(GUILD_ID);
+  const [users] = await db.execute(`SELECT * FROM users WHERE points > 0`);
+  let reset = 0;
+
+  for (const user of users) {
+    try {
+      const member = await guild.members.fetch(user.discord_id);
+      const before = user.points;
+      await checkInactivityAndRoles(member, user);
+      if (user.points !== before) reset++;
+    } catch {
+      // Member left the server — reset their points
+      await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
+        user.discord_id,
+      ]);
+      reset++;
+    }
+  }
+
+  console.log(`🔍 Inactivity audit complete — reset ${reset}/${users.length} users`);
+}
+
 // ===== START =====
 client.once("ready", () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
   updateStatus();
   setInterval(updateStatus, 1800000);
   syncUsernames();
+  auditAllUsers();
+  setInterval(auditAllUsers, 86400000);
 });
 
 // ===== WEB SERVER =====
@@ -478,7 +504,7 @@ const app = express();
 app.get("/", async (req, res) => {
   try {
     const [rows] = await db.execute(
-      `SELECT username, discord_id, points FROM users ORDER BY points DESC LIMIT 25`,
+      `SELECT username, discord_id, points FROM users WHERE points > 0 ORDER BY points DESC LIMIT 25`,
     );
 
     const rowClass = (i) =>
@@ -511,7 +537,11 @@ app.get("/", async (req, res) => {
 });
 
 app.get("/logo.png", (_req, res) =>
-  res.sendFile(path.join(__dirname, "logo.png")),
+  res.sendFile(path.join(__dirname, "assets", "logo.png")),
+);
+
+app.get("/favicon.png", (_req, res) =>
+  res.sendFile(path.join(__dirname, "assets", "favicon.png")),
 );
 
 app.listen(WEB_PORT, () =>
