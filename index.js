@@ -149,9 +149,10 @@ async function syncUsernames() {
   let synced = 0;
   for (const user of users) {
     try {
-      const discordUser = await client.users.fetch(user.discord_id);
+      const guild = client.guilds.cache.get(GUILD_ID);
+      const member = await guild.members.fetch(user.discord_id);
       await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
-        discordUser.displayName || discordUser.username,
+        member.displayName,
         user.discord_id,
       ]);
       synced++;
@@ -340,13 +341,13 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-      const target = interaction.options.getUser("user");
+      const target = interaction.options.getMember("user");
       const amount = interaction.options.getInteger("amount");
 
       let user = await getOrCreateUser(target.id);
 
       await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
-        target.displayName || target.username,
+        target.displayName,
         target.id,
       ]);
 
