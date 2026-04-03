@@ -15,6 +15,7 @@ const {
 const mysql = require("mysql2/promise");
 const express = require("express");
 const fs = require("fs");
+const path = require("path");
 
 // ===== CONFIG =====
 const TOKEN = process.env.TOKEN;
@@ -480,20 +481,23 @@ app.get("/", async (req, res) => {
       `SELECT username, discord_id, points FROM users ORDER BY points DESC LIMIT 25`,
     );
 
+    const rowClass = (i) =>
+      i === 0 ? "top-1" : i === 1 ? "top-2" : i === 2 ? "top-3" : "";
+
     const rankLabel = (i) => {
-      if (i === 0) return `<span class="rank gold">🥇</span>`;
-      if (i === 1) return `<span class="rank silver">🥈</span>`;
-      if (i === 2) return `<span class="rank bronze">🥉</span>`;
+      if (i === 0) return `<span class="medal">🥇</span>`;
+      if (i === 1) return `<span class="medal">🥈</span>`;
+      if (i === 2) return `<span class="medal">🥉</span>`;
       return `<span class="rank">${i + 1}</span>`;
     };
 
     const rowsHtml = rows
       .map(
         (r, i) => `
-        <tr>
-          <td>${rankLabel(i)}</td>
+        <tr class="${rowClass(i)}">
+          <td class="rank-cell">${rankLabel(i)}</td>
           <td class="name">${r.username || "Unknown Pilot"}</td>
-          <td class="points">${r.points}</td>
+          <td class="points-cell"><span class="points">${r.points}</span></td>
         </tr>`,
       )
       .join("");
@@ -505,6 +509,10 @@ app.get("/", async (req, res) => {
     res.status(500).send("Error loading leaderboard");
   }
 });
+
+app.get("/logo.png", (_req, res) =>
+  res.sendFile(path.join(__dirname, "logo.png")),
+);
 
 app.listen(WEB_PORT, () =>
   console.log(`🌐 Leaderboard at http://localhost:${WEB_PORT}`),

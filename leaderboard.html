@@ -5,31 +5,191 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="refresh" content="3600">
   <title>Caddock Coins — Leaderboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0d1117; color: #e6e6e6; font-family: 'Segoe UI', sans-serif; min-height: 100vh; padding: 40px 20px; }
-    h1 { text-align: center; color: #f1c40f; font-size: 2rem; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
-    .subtitle { text-align: center; color: #555; font-size: 0.85rem; margin-bottom: 40px; }
-    table { width: 100%; max-width: 600px; margin: 0 auto; border-collapse: collapse; }
-    thead tr { border-bottom: 2px solid #f1c40f; }
-    th { color: #f1c40f; text-align: left; padding: 12px 16px; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; }
+
+    body {
+      background-color: #0b0808;
+      background-image: radial-gradient(ellipse at 50% 0%, rgba(110, 15, 15, 0.35) 0%, transparent 65%);
+      color: #e2d9cc;
+      font-family: 'Exo 2', 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 52px 20px 64px;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      text-align: center;
+      margin-bottom: 44px;
+    }
+
+    .logo {
+      width: 128px;
+      height: 128px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 18px rgba(180, 120, 30, 0.55));
+      margin-bottom: 28px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-bottom: 10px;
+    }
+
+    .title-line {
+      flex: 1;
+      max-width: 110px;
+      height: 1px;
+      background: linear-gradient(to right, transparent, #c8a85a);
+    }
+    .title-line.right {
+      background: linear-gradient(to left, transparent, #c8a85a);
+    }
+
+    h1 {
+      font-family: 'Cinzel', Georgia, serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: 7px;
+      text-transform: uppercase;
+      background: linear-gradient(160deg, #b8942a 0%, #f0d47a 45%, #c8a85a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: #4a4038;
+      font-size: 0.76rem;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── TABLE CARD ── */
+    .card {
+      max-width: 640px;
+      margin: 0 auto;
+      background: linear-gradient(175deg, #140e0e 0%, #0e0a0a 100%);
+      border: 1px solid #2c1818;
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(200, 168, 90, 0.08),
+        0 8px 40px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(90, 10, 10, 0.25);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead tr {
+      background: linear-gradient(180deg, #1d1010 0%, #150c0c 100%);
+      border-bottom: 1px solid #c8a85a;
+    }
+
+    th {
+      font-family: 'Cinzel', Georgia, serif;
+      color: #c8a85a;
+      text-align: left;
+      padding: 14px 22px;
+      font-size: 0.7rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
     th:last-child { text-align: right; }
-    td { padding: 14px 16px; border-bottom: 1px solid #1a2030; }
-    tbody tr:hover { background: #1a2030; }
-    .rank { color: #888; font-size: 0.9rem; display: inline-block; min-width: 32px; }
-    .rank.gold { color: #f1c40f; }
-    .rank.silver { color: #c0c0c0; }
-    .rank.bronze { color: #cd7f32; }
-    .name { font-weight: 500; }
-    .points { color: #f1c40f; font-weight: bold; text-align: right; }
+
+    tbody tr {
+      border-bottom: 1px solid #1c1010;
+      transition: background 0.15s ease;
+    }
+    tbody tr:last-child { border-bottom: none; }
+
+    /* subtle tints for podium rows */
+    tbody tr.top-1 { background: rgba(200, 168, 90, 0.07); }
+    tbody tr.top-2 { background: rgba(192, 192, 192, 0.05); }
+    tbody tr.top-3 { background: rgba(180, 100, 40, 0.06); }
+
+    tbody tr:hover             { background: rgba(110, 30, 20, 0.28); }
+    tbody tr.top-1:hover       { background: rgba(200, 168, 90, 0.14); }
+    tbody tr.top-2:hover       { background: rgba(192, 192, 192, 0.11); }
+    tbody tr.top-3:hover       { background: rgba(180, 100, 40, 0.13); }
+
+    td { padding: 13px 22px; }
+
+    .rank-cell { width: 52px; }
+
+    .rank {
+      display: inline-block;
+      width: 26px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: #4a4038;
+      font-weight: 500;
+    }
+
+    .medal { font-size: 1.25rem; line-height: 1; }
+
+    .name {
+      font-size: 0.97rem;
+      font-weight: 500;
+      color: #ddd4c4;
+      letter-spacing: 0.2px;
+    }
+
+    .points-cell { text-align: right; }
+
+    .points {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #c8a85a;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      text-align: center;
+      margin-top: 22px;
+      color: #2e2520;
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
-  <h1>🏆 Leaderboard</h1>
-  <p class="subtitle">Refreshes every hour · Top 25</p>
-  <table>
-    <thead><tr><th>Rank</th><th>Pilot</th><th>Coins</th></tr></thead>
-    <tbody>{{ROWS}}</tbody>
-  </table>
+
+  <div class="header">
+    <img src="/logo.png" alt="Corporation Logo" class="logo">
+    <div class="title-row">
+      <div class="title-line"></div>
+      <h1>Leaderboard</h1>
+      <div class="title-line right"></div>
+    </div>
+    <p class="subtitle">Refreshes every hour &middot; Top 25</p>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Pilot</th>
+          <th>Coins</th>
+        </tr>
+      </thead>
+      <tbody>{{ROWS}}</tbody>
+    </table>
+  </div>
+
+  <p class="footer">D-SCO Coins &middot; EVE Online DKP System</p>
+
 </body>
 </html>
