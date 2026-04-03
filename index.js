@@ -13,6 +13,8 @@ const {
 } = require("discord.js");
 
 const mysql = require("mysql2/promise");
+const express = require("express");
+const fs = require("fs");
 
 // ===== CONFIG =====
 const TOKEN = process.env.TOKEN;
@@ -22,6 +24,8 @@ const GUILD_ID = process.env.GUILD_ID;
 const REQUIRED_ROLE = process.env.REQUIRED_ROLE;
 const ADMIN_ROLE = process.env.ADMIN_ROLE;
 const LOG_CHANNEL_ID = process.env.CHANNEL_ID;
+
+const WEB_PORT = process.env.WEB_PORT || 3000;
 
 const INACTIVE_DAYS = 60;
 const PURCHASE_COOLDOWN_DAYS = 30;
@@ -68,6 +72,13 @@ async function initDB() {
       delivered TINYINT DEFAULT 0
     )
   `);
+
+  // Safe migration: adds username column if it doesn't exist yet
+  try {
+    await db.execute(`ALTER TABLE users ADD COLUMN username VARCHAR(100)`);
+  } catch (e) {
+    if (e.errno !== 1060) throw e; // 1060 = column already exists, ignore
+  }
 
   const [rows] = await db.execute(`SELECT COUNT(*) as count FROM items`);
   if (rows[0].count === 0) {
@@ -130,6 +141,25 @@ async function checkInactivityAndRoles(member, user) {
   }
 
   return user;
+}
+
+// ===== USERNAME SYNC =====
+async function syncUsernames() {
+  const [users] = await db.execute(`SELECT discord_id FROM users`);
+  let synced = 0;
+  for (const user of users) {
+    try {
+      const discordUser = await client.users.fetch(user.discord_id);
+      await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
+        discordUser.displayName || discordUser.username,
+        user.discord_id,
+      ]);
+      synced++;
+    } catch {
+      // Account deleted or not found — leave username as-is
+    }
+  }
+  console.log(`✅ Synced usernames for ${synced}/${users.length} users`);
 }
 
 // ===== STATUS =====
@@ -315,6 +345,11 @@ client.on("interactionCreate", async (interaction) => {
 
       let user = await getOrCreateUser(target.id);
 
+      await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
+        target.displayName || target.username,
+        target.id,
+      ]);
+
       await db.execute(
         `UPDATE users SET points = points + ?, last_earned = NOW() WHERE discord_id = ?`,
         [amount, target.id],
@@ -432,6 +467,46 @@ client.once("ready", () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
   updateStatus();
   setInterval(updateStatus, 1800000);
+  syncUsernames();
 });
+
+// ===== WEB SERVER =====
+const app = express();
+
+app.get("/", async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `SELECT username, discord_id, points FROM users ORDER BY points DESC LIMIT 25`,
+    );
+
+    const rankLabel = (i) => {
+      if (i === 0) return `<span class="rank gold">🥇</span>`;
+      if (i === 1) return `<span class="rank silver">🥈</span>`;
+      if (i === 2) return `<span class="rank bronze">🥉</span>`;
+      return `<span class="rank">${i + 1}</span>`;
+    };
+
+    const rowsHtml = rows
+      .map(
+        (r, i) => `
+        <tr>
+          <td>${rankLabel(i)}</td>
+          <td class="name">${r.username || "Unknown Pilot"}</td>
+          <td class="points">${r.points}</td>
+        </tr>`,
+      )
+      .join("");
+
+    const template = fs.readFileSync("leaderboard.html", "utf8");
+    res.send(template.replace("{{ROWS}}", rowsHtml));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("Error loading leaderboard");
+  }
+});
+
+app.listen(WEB_PORT, () =>
+  console.log(`🌐 Leaderboard at http://localhost:${WEB_PORT}`),
+);
 
 initDB().then(() => client.login(TOKEN));
