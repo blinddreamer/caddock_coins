@@ -22,12 +22,10 @@
     }
 
     /* ── BACK BUTTON ── */
-    .back-wrap {
-      max-width: 640px;
-      margin: 0 auto 28px;
-    }
-
     .back-btn {
+      position: absolute;
+      left: 0;
+      top: 0;
       display: inline-flex;
       align-items: center;
       gap: 7px;
@@ -50,8 +48,10 @@
 
     /* ── HEADER ── */
     .header {
+      position: relative;
       text-align: center;
-      margin-bottom: 48px;
+      max-width: 640px;
+      margin: 0 auto 48px;
     }
 
     .logo {
@@ -198,14 +198,11 @@
 </head>
 <body>
 
-  <div class="back-wrap">
+  <div class="header">
     <a href="https://d-sco.rocks" class="back-btn">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/></svg>
       Back
     </a>
-  </div>
-
-  <div class="header">
     <img src="/logo.png" alt="Corporation Logo" class="logo">
     <div class="title-row">
       <div class="title-line"></div>
