@@ -200,7 +200,6 @@ const commands = [
       opt.setName("amount").setDescription("Amount").setRequired(true),
     ),
   new SlashCommandBuilder().setName("shop").setDescription("Open shop"),
-  new SlashCommandBuilder().setName("leaderboard").setDescription("Top users"),
 ].map((c) => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -450,18 +449,6 @@ client.on("interactionCreate", async (interaction) => {
     interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
   }
 
-  // ===== LEADERBOARD =====
-  if (interaction.commandName === "leaderboard") {
-    const [rows] = await db.execute(
-      `SELECT discord_id, points FROM users ORDER BY points DESC LIMIT 10`,
-    );
-
-    let text = "**🏆 Leaderboard**\n";
-    rows.forEach(
-      (r, i) => (text += `${i + 1}. <@${r.discord_id}> — ${r.points}\n`),
-    );
-    interaction.reply({ content: text });
-  }
 });
 
 // ===== INACTIVITY AUDIT =====
