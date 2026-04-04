@@ -498,10 +498,11 @@ app.get("/", async (req, res) => {
       i === 0 ? "top-1" : i === 1 ? "top-2" : i === 2 ? "top-3" : "";
 
     const rankLabel = (i) => {
-      if (i === 0) return `<span class="medal">🥇</span>`;
-      if (i === 1) return `<span class="medal">🥈</span>`;
-      if (i === 2) return `<span class="medal">🥉</span>`;
-      return `<span class="rank">${i + 1}</span>`;
+      const num = String(i + 1).padStart(2, "0");
+      if (i === 0) return `<span class="rank gold">${num}</span>`;
+      if (i === 1) return `<span class="rank silver">${num}</span>`;
+      if (i === 2) return `<span class="rank bronze">${num}</span>`;
+      return `<span class="rank">${num}</span>`;
     };
 
     const rowsHtml = rows
