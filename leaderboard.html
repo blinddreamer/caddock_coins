@@ -35,7 +35,7 @@
       text-transform: uppercase;
       color: #aaa;
       margin-top: 0.4rem;
-      margin-left: 15px;
+      margin-left: 35px;
     }
 
     /* ── TABLE ── */
@@ -112,6 +112,18 @@
       color: white;
       letter-spacing: 1.5px;
     }
+
+    /* ── CORP STATS ── */
+    #kb-stats {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      display: flex;
+      gap: 2rem;
+      padding: 0.5rem 2rem;
+      margin-bottom: 25px;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
@@ -166,12 +178,28 @@
     </div>
   </div>
 
+  <div id="kb-stats">
+    <div class="stat">
+      <span class="stat-label">Ships Killed</span>
+      <span class="stat-value" id="stat-kills">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">ISK Destroyed</span>
+      <span class="stat-value" id="stat-isk">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Ships Lost</span>
+      <span class="stat-value" id="stat-lost">—</span>
+    </div>
+  </div>
+
   <footer class="footer">
     <p>&copy; d-sco.rocks</p>
     <p>EVE and related materials are trademarks of <a href="https://www.ccpgames.com/">CCP hf</a></p>
   </footer>
 
   <script src="https://d-sco.rocks/logan.js"></script>
+  <script src="https://d-sco.rocks/stats.js"></script>
   <script>
     window.addEventListener('load', () => {
       const loader = document.getElementById('loader');
