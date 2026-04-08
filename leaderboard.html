@@ -20,6 +20,8 @@
     .content {
       position: relative;
       z-index: 1;
+      top: auto;
+      left: auto;
       padding: 140px 40px 100px;
       max-width: 680px;
     }
@@ -47,7 +49,10 @@
       display: block;
       max-height: calc(100vh - 280px);
       overflow-y: auto;
+      scrollbar-width: none;
     }
+
+    .card tbody::-webkit-scrollbar { display: none; }
     .card tbody tr { display: table; width: 100%; table-layout: fixed; }
 
     table { width: 100%; border-collapse: collapse; }
