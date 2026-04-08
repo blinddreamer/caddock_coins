@@ -8,12 +8,20 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="https://d-sco.rocks/styles.css" />
   <style>
+    body {
+      background: transparent;
+      display: block;
+    }
+
+    #bg-video {
+      position: fixed;
+    }
+
     .content {
       position: relative;
       z-index: 1;
-      top: 35%;
-      left: 2rem;
-      max-width: 640px;
+      padding: 140px 40px 100px;
+      max-width: 680px;
     }
 
     .subtitle {
@@ -33,6 +41,14 @@
       border-radius: 4px;
       overflow: hidden;
     }
+
+    .card thead { display: table; width: 100%; table-layout: fixed; }
+    .card tbody {
+      display: block;
+      max-height: calc(100vh - 280px);
+      overflow-y: auto;
+    }
+    .card tbody tr { display: table; width: 100%; table-layout: fixed; }
 
     table { width: 100%; border-collapse: collapse; }
 
@@ -134,7 +150,6 @@
     </div>
   </div>
 
-  <div id="dots"></div>
   <footer class="footer">
     <p>&copy; d-sco.rocks</p>
     <p>EVE and related materials are trademarks of <a href="https://www.ccpgames.com/">CCP hf</a></p>
