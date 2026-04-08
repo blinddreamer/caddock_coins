@@ -4,138 +4,48 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="refresh" content="3600">
-  <title>D-SCO Coins · EVE Online DKP Leaderboard</title>
+  <title>D-SCO Coins · Leaderboard</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://d-sco.rocks/styles.css" />
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: #0a0a0a;
-      background-image:
-        radial-gradient(ellipse at 50% 0%, rgba(140, 10, 10, 0.3) 0%, transparent 60%);
-      color: #d8d8d8;
-      font-family: 'Exo 2', 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      padding: 52px 20px 64px;
-    }
-
-    /* ── BACK BUTTON ── */
-    .back-btn {
-      position: absolute;
-      left: 0;
-      top: 0;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      color: #888;
-      font-size: 0.82rem;
-      font-weight: 500;
-      letter-spacing: 0.5px;
-      text-decoration: none;
-      border: 1px solid #2a2a2a;
-      border-radius: 4px;
-      padding: 7px 14px;
-      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-    }
-
-    .back-btn:hover {
-      color: #cc2222;
-      border-color: rgba(200, 30, 30, 0.4);
-      background: rgba(140, 10, 10, 0.12);
-    }
-
-    /* ── HEADER ── */
-    .header {
+    .content {
       position: relative;
-      text-align: center;
+      z-index: 1;
+      top: 35%;
+      left: 2rem;
       max-width: 640px;
-      margin: 0 auto 48px;
-    }
-
-    .logo {
-      width: 130px;
-      height: 130px;
-      object-fit: contain;
-      filter:
-        drop-shadow(0 0 12px rgba(200, 30, 30, 0.65))
-        drop-shadow(0 0 30px rgba(140, 10, 10, 0.35));
-      margin-bottom: 28px;
-    }
-
-    .title-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 18px;
-      margin-bottom: 10px;
-    }
-
-    .title-line {
-      flex: 1;
-      max-width: 110px;
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(200, 30, 30, 0.7));
-    }
-    .title-line.right {
-      background: linear-gradient(to left, transparent, rgba(200, 30, 30, 0.7));
-    }
-
-    h1 {
-      font-family: 'Cinzel', Georgia, serif;
-      font-size: 1.75rem;
-      font-weight: 700;
-      letter-spacing: 7px;
-      text-transform: uppercase;
-      background: linear-gradient(160deg, #aaaaaa 0%, #ffffff 45%, #999999 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
     }
 
     .subtitle {
-      color: #333333;
       font-size: 0.75rem;
-      letter-spacing: 2.5px;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
-      margin-top: 10px;
+      color: #aaa;
+      margin-top: 0.4rem;
+      margin-left: 15px;
     }
 
-    /* ── CARD ── */
+    /* ── TABLE ── */
     .card {
-      max-width: 640px;
-      margin: 0 auto;
-      background: rgba(14, 12, 12, 0.95);
-      border: 1px solid rgba(180, 20, 20, 0.25);
+      margin-top: 2rem;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 4px;
       overflow: hidden;
-      box-shadow:
-        0 0 0 1px rgba(180, 20, 20, 0.07),
-        0 8px 40px rgba(0, 0, 0, 0.7),
-        0 0 60px rgba(120, 10, 10, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+    table { width: 100%; border-collapse: collapse; }
 
-    thead tr {
-      background: rgba(30, 10, 10, 0.9);
-      border-bottom: 1px solid rgba(200, 30, 30, 0.5);
-    }
+    thead tr { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 
     th {
-      font-family: 'Cinzel', Georgia, serif;
-      color: #cc2222;
+      color: #aaa;
       text-align: left;
       padding: 14px 22px;
-      font-size: 0.7rem;
-      letter-spacing: 3px;
+      font-size: 0.65rem;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
-      font-weight: 600;
+      font-weight: normal;
     }
     th:last-child { text-align: right; }
 
@@ -144,28 +54,17 @@
       transition: background 0.15s ease;
     }
     tbody tr:last-child { border-bottom: none; }
-
-    tbody tr.top-1 { background: rgba(200, 168, 90, 0.07); }
-    tbody tr.top-2 { background: rgba(180, 180, 180, 0.05); }
-    tbody tr.top-3 { background: rgba(180, 100, 40, 0.05); }
-
-    tbody tr:hover             { background: rgba(140, 10, 10, 0.22); }
-    tbody tr.top-1:hover       { background: rgba(200, 168, 90, 0.13); }
-    tbody tr.top-2:hover       { background: rgba(180, 180, 180, 0.1); }
-    tbody tr.top-3:hover       { background: rgba(180, 100, 40, 0.12); }
+    tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
 
     td { padding: 13px 22px; }
-
-    .rank-cell { width: 52px; }
 
     .rank {
       display: inline-block;
       width: 26px;
       text-align: center;
       font-size: 0.85rem;
-      font-weight: 600;
-      color: #3a3a3a;
-      letter-spacing: 0.5px;
+      color: #444;
+      letter-spacing: 1px;
     }
 
     .rank.gold   { color: #c8a85a; }
@@ -173,62 +72,81 @@
     .rank.bronze { color: #a0602a; }
 
     .name {
-      font-size: 0.97rem;
-      font-weight: 500;
-      color: #cccccc;
-      letter-spacing: 0.2px;
+      font-size: 0.9rem;
+      color: #ccc;
+      letter-spacing: 1px;
+      text-transform: uppercase;
     }
 
     .points-cell { text-align: right; }
 
     .points {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #cc2222;
-      letter-spacing: 0.5px;
-    }
-
-    /* ── FOOTER ── */
-    .footer {
-      text-align: center;
-      margin-top: 22px;
-      color: #222222;
-      font-size: 0.7rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
+      font-size: 0.9rem;
+      color: white;
+      letter-spacing: 1.5px;
     }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <a href="https://d-sco.rocks" class="back-btn">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/></svg>
-      Back
-    </a>
-    <img src="/logo.png" alt="Corporation Logo" class="logo">
-    <div class="title-row">
-      <div class="title-line"></div>
-      <h1>Leaderboard</h1>
-      <div class="title-line right"></div>
+  <div id="loader"><span>D-SCO</span></div>
+  <div id="dots"></div>
+
+  <nav class="navbar">
+    <div class="nav-links">
+      <a href="https://d-sco.rocks" class="purifier-link">
+        <img src="https://d-sco.rocks/assets/purifier.png" alt="Purifier" class="purifier-icon" />
+      </a>
+      <span id="doh">|</span>
+      <a href="https://d-sco.rocks/">Home</a>
+      <span id="doh">|</span>
+      <a href="https://auth.d-sco.rocks/">Auth</a>
+      <span id="doh">|</span>
+      <a href="https://wiki.d-sco.rocks/">Wiki</a>
+      <span id="doh">|</span>
+      <a href="https://d-sco.rocks/news">News</a>
+      <span id="doh">|</span>
+      <a href="https://leaderboard.d-sco.rocks/">Leaderboard</a>
+      <span id="doh">|</span>
+      <a href="https://zkillboard.com/corporation/98519746/">Zkill</a>
     </div>
+  </nav>
+
+  <video autoplay muted loop id="bg-video">
+    <source src="https://d-sco.rocks/assets/bg.mp4" type="video/mp4" />
+  </video>
+
+  <div class="content">
+    <h1>Leaderboard</h1>
     <p class="subtitle">Refreshes every hour &middot; Top 25</p>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Pilot</th>
+            <th>Coins</th>
+          </tr>
+        </thead>
+        <tbody>{{ROWS}}</tbody>
+      </table>
+    </div>
   </div>
 
-  <div class="card">
-    <table>
-      <thead>
-        <tr>
-          <th>Rank</th>
-          <th>Pilot</th>
-          <th>Coins</th>
-        </tr>
-      </thead>
-      <tbody>{{ROWS}}</tbody>
-    </table>
-  </div>
+  <div id="dots"></div>
+  <footer class="footer">
+    <p>&copy; d-sco.rocks</p>
+    <p>EVE and related materials are trademarks of <a href="https://www.ccpgames.com/">CCP hf</a></p>
+  </footer>
 
-  <p class="footer">D-SCO Coins &middot; EVE Online DKP Leaderboard</p>
+  <script>
+    window.addEventListener('load', () => {
+      const loader = document.getElementById('loader');
+      loader.classList.add('loader-hide');
+      loader.addEventListener('transitionend', () => loader.remove());
+    });
+  </script>
 
 </body>
 </html>
