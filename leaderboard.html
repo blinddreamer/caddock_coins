@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="https://d-sco.rocks/styles.css" />
   <style>
     html, body {
+      height: 100%;
+      overflow: hidden;
       background: transparent;
       display: block;
       align-items: unset;
@@ -25,7 +27,7 @@
       top: auto;
       left: auto;
       margin-left: 2rem;
-      padding: 140px 0 100px;
+      padding: 140px 0 40px;
       max-width: 640px;
     }
 
@@ -49,9 +51,11 @@
     }
 
     .card thead { display: table; width: 100%; table-layout: fixed; }
+    .card thead th:first-child  { width: 60px; }
+    .card thead th:last-child   { width: 120px; }
     .card tbody {
       display: block;
-      max-height: calc(100vh - 280px);
+      height: 460px;
       overflow-y: auto;
       scrollbar-width: none;
     }
@@ -113,6 +117,53 @@
       letter-spacing: 1.5px;
     }
 
+    /* ── MOBILE OVERLAY ── */
+    #mobile-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.92);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px 24px;
+      gap: 20px;
+    }
+
+    #mobile-overlay img {
+      width: 80px;
+      opacity: 0.85;
+    }
+
+    #mobile-overlay h2 {
+      color: #fff;
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    #mobile-overlay p {
+      color: #666;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      line-height: 1.6;
+      max-width: 280px;
+    }
+
+    /* ── TABLET (768px – 1024px): Option A ── */
+    @media (min-width: 576px) and (max-width: 1024px) {
+      html, body { height: auto; overflow: auto; }
+      .content { padding: 100px 20px 40px; margin-left: 1rem; }
+      .card tbody { height: auto; max-height: calc(100dvh - 320px); }
+    }
+
+    /* ── MOBILE (<576px): Option C ── */
+    @media (max-width: 575px) {
+      #mobile-overlay { display: flex; }
+    }
+
     /* ── CORP STATS ── */
     #kb-stats {
       position: fixed;
@@ -159,6 +210,12 @@
   <video autoplay muted loop id="bg-video">
     <source src="https://d-sco.rocks/assets/bg.mp4" type="video/mp4" />
   </video>
+
+  <div id="mobile-overlay">
+    <img src="/logo.png" alt="D-SCO Logo">
+    <h2>D-SCO Leaderboard</h2>
+    <p>This page is optimised for desktop.<br>Visit us on a larger screen for the best experience.</p>
+  </div>
 
   <div class="content">
     <h1>Leaderboard</h1>
