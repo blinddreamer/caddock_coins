@@ -113,43 +113,9 @@
 
     .points {
       font-size: 0.9rem;
+      font-family: 'Share Tech Mono', monospace;
       color: white;
       letter-spacing: 1.5px;
-    }
-
-    /* ── MOBILE OVERLAY ── */
-    #mobile-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      background: rgba(0, 0, 0, 0.92);
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 40px 24px;
-      gap: 20px;
-    }
-
-    #mobile-overlay img {
-      width: 80px;
-      opacity: 0.85;
-    }
-
-    #mobile-overlay h2 {
-      color: #fff;
-      font-size: 1.1rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
-
-    #mobile-overlay p {
-      color: #666;
-      font-size: 0.8rem;
-      letter-spacing: 1px;
-      line-height: 1.6;
-      max-width: 280px;
     }
 
     /* ── TABLET (768px – 1024px): Option A ── */
@@ -182,22 +148,38 @@
   <div id="loader"><span>D-SCO</span></div>
   <div id="dots"></div>
 
+  <!-- MOBILE NAV OVERLAY -->
+  <div id="mobile-overlay">
+    <button id="mobile-close">&times;</button>
+    <nav id="mobile-nav">
+      <a href="https://d-sco.rocks/">Home</a>
+      <a href="https://auth.d-sco.rocks/">Auth</a>
+      <a href="https://wiki.d-sco.rocks/">Wiki</a>
+      <a href="https://d-sco.rocks/news">News</a>
+      <a href="https://leaderboard.d-sco.rocks/">Leaderboard</a>
+      <a href="https://zkillboard.com/corporation/98519746/">Zkill</a>
+    </nav>
+  </div>
+
   <nav class="navbar">
+    <button id="hamburger" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
     <div class="nav-links">
       <a href="https://d-sco.rocks" class="purifier-link">
         <img src="https://d-sco.rocks/assets/purifier.png" alt="Purifier" class="purifier-icon" />
       </a>
-      <span id="doh">|</span>
+      <span class="sep">|</span>
       <a href="https://d-sco.rocks/">Home</a>
-      <span id="doh">|</span>
+      <span class="sep">|</span>
       <a href="https://auth.d-sco.rocks/">Auth</a>
-      <span id="doh">|</span>
+      <span class="sep">|</span>
       <a href="https://wiki.d-sco.rocks/">Wiki</a>
-      <span id="doh">|</span>
+      <span class="sep">|</span>
       <a href="https://d-sco.rocks/news">News</a>
-      <span id="doh">|</span>
+      <span class="sep">|</span>
       <a href="https://leaderboard.d-sco.rocks/">Leaderboard</a>
-      <span id="doh">|</span>
+      <span class="sep">|</span>
       <a href="https://zkillboard.com/corporation/98519746/">Zkill</a>
     </div>
   </nav>
@@ -218,7 +200,7 @@
   </div>
 
   <div class="content">
-    <h1>Leaderboard</h1>
+    <h1 data-text="Leaderboard">Leaderboard</h1>
     <p class="subtitle">Refreshes every hour &middot; Top 25</p>
 
     <div class="card">
@@ -255,6 +237,7 @@
     <p>EVE and related materials are trademarks of <a href="https://www.ccpgames.com/">CCP hf</a></p>
   </footer>
 
+  <script src="https://d-sco.rocks/menu.js"></script>
   <script src="https://d-sco.rocks/logan.js"></script>
   <script src="https://d-sco.rocks/stats.js"></script>
   <script>
