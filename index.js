@@ -10,6 +10,8 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ActivityType,
+  Events,
+  MessageFlags,
 } = require("discord.js");
 
 const mysql = require("mysql2/promise");
@@ -238,7 +240,7 @@ client.on("interactionCreate", async (interaction) => {
               content: `⛔ You can make one purchase every ${PURCHASE_COOLDOWN_DAYS} days.\nPlease wait ${Math.ceil(
                 PURCHASE_COOLDOWN_DAYS - diffDays,
               )} more day(s).`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         }
@@ -259,7 +261,7 @@ client.on("interactionCreate", async (interaction) => {
           if (existing.length > 0) {
             return interaction.reply({
               content: `⛔ You already claimed your one-off ${item.category}.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         }
@@ -267,7 +269,7 @@ client.on("interactionCreate", async (interaction) => {
         if (user.points < item.cost)
           return interaction.reply({
             content: "Not enough coins",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
 
         await db.execute(
@@ -282,7 +284,7 @@ client.on("interactionCreate", async (interaction) => {
 
         await interaction.reply({
           content: `✅ Purchased ${item.name}`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
 
         // ===== LOG CHANNEL =====
@@ -308,7 +310,7 @@ client.on("interactionCreate", async (interaction) => {
     // ===== MARK DELIVERED =====
     if (interaction.customId.startsWith("delivered_")) {
       if (!hasRole(member, ADMIN_ROLE))
-        return interaction.reply({ content: "Nope.", ephemeral: true });
+        return interaction.reply({ content: "Nope.", flags: MessageFlags.Ephemeral });
 
       const [, userId, itemId] = interaction.customId.split("_");
 
@@ -325,7 +327,7 @@ client.on("interactionCreate", async (interaction) => {
         });
       }
 
-      await interaction.reply({ content: "Marked delivered", ephemeral: true });
+      await interaction.reply({ content: "Marked delivered", flags: MessageFlags.Ephemeral });
     }
 
     return;
@@ -336,9 +338,9 @@ client.on("interactionCreate", async (interaction) => {
   // ===== ADD COINS =====
   if (interaction.commandName === "addcoins") {
     if (!hasRole(member, ADMIN_ROLE))
-      return interaction.reply({ content: "⛔ Not allowed.", ephemeral: true });
+      return interaction.reply({ content: "⛔ Not allowed.", flags: MessageFlags.Ephemeral });
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const target = interaction.options.getMember("user");
@@ -446,7 +448,7 @@ client.on("interactionCreate", async (interaction) => {
       if (row.components.length > 0) rows.push(row);
     }
 
-    interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
+    interaction.reply({ embeds: [embed], components: rows, flags: MessageFlags.Ephemeral });
   }
 
 });
@@ -476,7 +478,7 @@ async function auditAllUsers() {
 }
 
 // ===== START =====
-client.once("ready", () => {
+client.once(Events.ClientReady, () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
   updateStatus();
   setInterval(updateStatus, 1800000);
