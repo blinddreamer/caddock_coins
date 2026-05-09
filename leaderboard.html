@@ -26,9 +26,15 @@
       z-index: 1;
       top: auto;
       left: auto;
-      margin-left: 2rem;
-      padding: 140px 0 40px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 140px 20px 40px;
       max-width: 640px;
+      text-align: center;
+    }
+
+    .content h1 {
+      margin-left: 0;
     }
 
     .subtitle {
@@ -37,13 +43,13 @@
       text-transform: uppercase;
       color: #aaa;
       margin-top: 0.4rem;
-      margin-left: 35px;
+      margin-left: 0;
     }
 
     /* ── TABLE ── */
     .card {
       margin-top: 2rem;
-      margin-left: 15px;
+      margin-left: 0;
       background: rgba(0, 0, 0, 0.75);
       border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 4px;
@@ -121,7 +127,7 @@
     /* ── TABLET (768px – 1024px): Option A ── */
     @media (min-width: 576px) and (max-width: 1024px) {
       html, body { height: auto; overflow: auto; }
-      .content { padding: 100px 20px 40px; margin-left: 1rem; }
+      .content { padding: 100px 20px 40px; margin: 0 auto; }
       .card tbody { height: auto; max-height: calc(100dvh - 320px); }
     }
 
