@@ -131,20 +131,6 @@
       letter-spacing: 1.5px;
     }
 
-    /* ── RESPONSIVE ── */
-    @media (max-width: 1024px) {
-      html, body { height: auto; overflow-y: auto; }
-      .content { padding: 100px 20px 80px; }
-      .card tbody { height: auto; max-height: calc(100dvh - 320px); }
-    }
-
-    @media (max-width: 720px) {
-      .content { padding: 80px 16px 40px; }
-      .card tbody { max-height: calc(100dvh - 220px); }
-      #kb-stats { display: none; }
-      td, th { padding: 10px 14px; }
-    }
-
     /* ── CORP STATS ── */
     #kb-stats {
       position: fixed;
@@ -155,6 +141,20 @@
       padding: 0.5rem 2rem;
       margin-bottom: 25px;
       z-index: 10;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1024px) {
+      html, body { height: auto; overflow-y: auto; }
+      .content { padding: 100px 20px 80px; }
+      .card tbody { height: auto; max-height: calc(100dvh - 320px); }
+    }
+
+    @media (max-width: 720px) {
+      .content { padding: 80px 16px 70px; }
+      .card tbody { max-height: calc(100dvh - 220px); }
+      #kb-stats { display: none; }
+      td, th { padding: 10px 14px; }
     }
   </style>
 </head>
