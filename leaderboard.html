@@ -19,6 +19,13 @@
 
     #bg-video {
       position: fixed;
+      z-index: -1;
+      bottom: 0;
+      right: 0;
+      min-width: 100vw;
+      min-height: 100vh;
+      width: auto;
+      height: auto;
     }
 
     .content {
@@ -61,7 +68,7 @@
     .card thead th:last-child   { width: 120px; }
     .card tbody {
       display: block;
-      height: 675px;
+      height: min(675px, calc(100dvh - 260px));
       overflow-y: auto;
       scrollbar-width: none;
     }
@@ -124,16 +131,18 @@
       letter-spacing: 1.5px;
     }
 
-    /* ── TABLET (768px – 1024px): Option A ── */
-    @media (min-width: 576px) and (max-width: 1024px) {
-      html, body { height: auto; overflow: auto; }
-      .content { padding: 100px 20px 40px; margin: 0 auto; }
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1024px) {
+      html, body { height: auto; overflow-y: auto; }
+      .content { padding: 100px 20px 80px; }
       .card tbody { height: auto; max-height: calc(100dvh - 320px); }
     }
 
-    /* ── MOBILE (<576px): Option C ── */
-    @media (max-width: 575px) {
-      #mobile-overlay { display: flex; }
+    @media (max-width: 720px) {
+      .content { padding: 80px 16px 40px; }
+      .card tbody { max-height: calc(100dvh - 220px); }
+      #kb-stats { display: none; }
+      td, th { padding: 10px 14px; }
     }
 
     /* ── CORP STATS ── */
@@ -195,15 +204,9 @@
     <p>In the end, it wasn't the enemy that claimed him...</p>
   </div>
 
-  <video autoplay muted loop id="bg-video">
+  <video autoplay muted loop playsinline id="bg-video">
     <source src="https://d-sco.rocks/assets/bg.mp4" type="video/mp4" />
   </video>
-
-  <div id="mobile-overlay">
-    <img src="/logo.png" alt="D-SCO Logo">
-    <h2>D-SCO Leaderboard</h2>
-    <p>This page is optimised for desktop.<br>Visit us on a larger screen for the best experience.</p>
-  </div>
 
   <div class="content">
     <h1 data-text="Leaderboard">Leaderboard</h1>
