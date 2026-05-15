@@ -32,7 +32,11 @@ const WEB_PORT = process.env.WEB_PORT || 3000;
 
 const INACTIVE_DAYS = 60;
 const PURCHASE_COOLDOWN_DAYS = 30;
-const MIN_DAYS_IN_CORP = 30;
+
+const REQUIRED_ENV = ["TOKEN", "CLIENT_ID", "GUILD_ID", "REQUIRED_ROLE", "ADMIN_ROLE", "CHANNEL_ID", "DB_HOST", "DB_USER", "DB_PASS", "DB_NAME"];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
+}
 
 // ===== MYSQL =====
 const db = mysql.createPool({
@@ -99,7 +103,16 @@ const client = new Client({
 
 // ===== HELPERS =====
 function hasRole(member, roleName) {
-  return member.roles.cache.some((r) => r.name === roleName);
+  return member.roles.cache.some((r) => r.name.toLowerCase() === roleName.toLowerCase());
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function daysSince(date) {
@@ -187,7 +200,9 @@ async function updateStatus() {
       activities: [random],
       status: "online",
     });
-  } catch {}
+  } catch (e) {
+    console.error("Failed to update status:", e);
+  }
 }
 
 // ===== COMMANDS =====
@@ -221,7 +236,8 @@ client.on("interactionCreate", async (interaction) => {
     // ===== BUY =====
     if (interaction.customId.startsWith("buy_")) {
       try {
-        const itemId = interaction.customId.split("_")[1];
+        const itemId = parseInt(interaction.customId.split("_")[1], 10);
+        if (isNaN(itemId)) return interaction.reply({ content: "⛔ Invalid item.", flags: MessageFlags.Ephemeral });
 
         let user = await getOrCreateUser(interaction.user.id);
         user = await checkInactivityAndRoles(member, user);
@@ -231,6 +247,7 @@ client.on("interactionCreate", async (interaction) => {
         ]);
 
         const item = items[0];
+        if (!item) return interaction.reply({ content: "⛔ Item not found.", flags: MessageFlags.Ephemeral });
 
         // 30-DAY COOLDOWN CHECK
         if (user.last_purchase) {
@@ -272,15 +289,24 @@ client.on("interactionCreate", async (interaction) => {
             flags: MessageFlags.Ephemeral,
           });
 
-        await db.execute(
-          `UPDATE users SET points = points - ?, last_purchase = NOW() WHERE discord_id = ?`,
-          [item.cost, user.discord_id],
-        );
-
-        await db.execute(
-          `INSERT INTO purchases (user_id, item_id, date) VALUES (?, ?, NOW())`,
-          [user.id, item.id],
-        );
+        const conn = await db.getConnection();
+        try {
+          await conn.beginTransaction();
+          await conn.execute(
+            `UPDATE users SET points = points - ?, last_purchase = NOW() WHERE discord_id = ?`,
+            [item.cost, user.discord_id],
+          );
+          await conn.execute(
+            `INSERT INTO purchases (user_id, item_id, date) VALUES (?, ?, NOW())`,
+            [user.id, item.id],
+          );
+          await conn.commit();
+        } catch (txErr) {
+          await conn.rollback();
+          throw txErr;
+        } finally {
+          conn.release();
+        }
 
         await interaction.reply({
           content: `✅ Purchased ${item.name}`,
@@ -297,10 +323,10 @@ client.on("interactionCreate", async (interaction) => {
               .setStyle(ButtonStyle.Success),
           );
 
-          channel.send({
+          await channel.send({
             content: `📦 ${item.name} purchased by <@${user.discord_id}>`,
             components: [rowBtn],
-          });
+          }).catch((e) => console.error("Failed to send log message:", e));
         }
       } catch (e) {
         console.error(e);
@@ -312,7 +338,11 @@ client.on("interactionCreate", async (interaction) => {
       if (!hasRole(member, ADMIN_ROLE))
         return interaction.reply({ content: "Nope.", flags: MessageFlags.Ephemeral });
 
-      const [, userId, itemId] = interaction.customId.split("_");
+      const [, userIdStr, itemIdStr] = interaction.customId.split("_");
+      const userId = parseInt(userIdStr, 10);
+      const itemId = parseInt(itemIdStr, 10);
+      if (isNaN(userId) || isNaN(itemId))
+        return interaction.reply({ content: "⛔ Invalid data.", flags: MessageFlags.Ephemeral });
 
       await db.execute(
         `UPDATE purchases SET delivered = 1 WHERE user_id = ? AND item_id = ?`,
@@ -512,13 +542,13 @@ app.get("/", async (req, res) => {
         (r, i) => `
         <tr class="${rowClass(i)}">
           <td class="rank-cell">${rankLabel(i)}</td>
-          <td class="name">${r.username || "Unknown Pilot"}</td>
+          <td class="name">${escapeHtml(r.username || "Unknown Pilot")}</td>
           <td class="points-cell"><span class="points">${r.points}</span></td>
         </tr>`,
       )
       .join("");
 
-    const template = fs.readFileSync("leaderboard.html", "utf8");
+    const template = fs.readFileSync(path.join(__dirname, "leaderboard.html"), "utf8");
     res.send(template.replace("{{ROWS}}", rowsHtml));
   } catch (e) {
     console.error(e);
