@@ -140,11 +140,14 @@ async function getOrCreateUser(discordId) {
 }
 
 async function checkInactivityAndRoles(member, user) {
+  const name = user.username || user.discord_id;
+
   if (user.last_earned) {
     if (daysSince(user.last_earned) >= INACTIVE_DAYS && user.points > 0) {
       await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
         user.discord_id,
       ]);
+      console.log(`🔄 Reset ${name} — inactive for ${INACTIVE_DAYS}+ days (had ${user.points} coins)`);
       user.points = 0;
     }
   }
@@ -153,6 +156,7 @@ async function checkInactivityAndRoles(member, user) {
     await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
       user.discord_id,
     ]);
+    console.log(`🔄 Reset ${name} — missing required role (had ${user.points} coins)`);
     user.points = 0;
   }
 
@@ -308,6 +312,10 @@ client.on("interactionCreate", async (interaction) => {
           conn.release();
         }
 
+        const [afterBuy] = await db.execute(`SELECT points FROM users WHERE discord_id = ?`, [user.discord_id]);
+        const remaining = afterBuy[0]?.points ?? "?";
+        console.log(`🛒 ${interaction.user.username} bought "${item.name}" for ${item.cost} coins (remaining: ${remaining})`);
+
         await interaction.reply({
           content: `✅ Purchased ${item.name}`,
           flags: MessageFlags.Ephemeral,
@@ -387,6 +395,10 @@ client.on("interactionCreate", async (interaction) => {
         `UPDATE users SET points = points + ?, last_earned = NOW() WHERE discord_id = ?`,
         [amount, target.id],
       );
+
+      const [updated] = await db.execute(`SELECT points FROM users WHERE discord_id = ?`, [target.id]);
+      const newBalance = updated[0]?.points ?? "?";
+      console.log(`💰 ${interaction.user.username} gave ${amount} coins to ${target.displayName} (new balance: ${newBalance})`);
 
       await interaction.editReply(
         `✅ Added **${amount} coins** to <@${target.id}>`,
@@ -497,6 +509,8 @@ async function auditAllUsers() {
       if (user.points !== before) reset++;
     } catch {
       // Member left the server — reset their points
+      const name = user.username || user.discord_id;
+      console.log(`🔄 Reset ${name} — left the server (had ${user.points} coins)`);
       await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
         user.discord_id,
       ]);
