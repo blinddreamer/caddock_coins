@@ -33,6 +33,34 @@ const WEB_PORT = process.env.WEB_PORT || 3000;
 const INACTIVE_DAYS = 60;
 const PURCHASE_COOLDOWN_DAYS = 30;
 
+// ===== FILE LOGGING =====
+const LOG_FILE = path.join(__dirname, "logs", "bot.log");
+const MAX_LOG_LINES = 1000;
+
+fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+
+function appendLog(line) {
+  fs.appendFileSync(LOG_FILE, line + "\n");
+  const lines = fs.readFileSync(LOG_FILE, "utf8").split("\n").filter(Boolean);
+  if (lines.length > MAX_LOG_LINES) {
+    fs.writeFileSync(LOG_FILE, lines.slice(-MAX_LOG_LINES).join("\n") + "\n");
+  }
+}
+
+const rawConsoleLog = console.log.bind(console);
+const rawConsoleError = console.error.bind(console);
+
+console.log = (...args) => {
+  rawConsoleLog(...args);
+  appendLog(`[${new Date().toISOString()}] ${args.join(" ")}`);
+};
+
+console.error = (...args) => {
+  rawConsoleError(...args);
+  const formatted = args.map((a) => (a instanceof Error ? a.stack : a)).join(" ");
+  appendLog(`[${new Date().toISOString()}] ERROR: ${formatted}`);
+};
+
 const REQUIRED_ENV = ["TOKEN", "CLIENT_ID", "GUILD_ID", "REQUIRED_ROLE", "ADMIN_ROLE", "CHANNEL_ID", "DB_HOST", "DB_USER", "DB_PASS", "DB_NAME"];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
