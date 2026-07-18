@@ -39,11 +39,19 @@ const MAX_LOG_LINES = 1000;
 
 fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 
+let logLineCount = fs.existsSync(LOG_FILE)
+  ? fs.readFileSync(LOG_FILE, "utf8").split("\n").filter(Boolean).length
+  : 0;
+
 function appendLog(line) {
   fs.appendFileSync(LOG_FILE, line + "\n");
-  const lines = fs.readFileSync(LOG_FILE, "utf8").split("\n").filter(Boolean);
-  if (lines.length > MAX_LOG_LINES) {
-    fs.writeFileSync(LOG_FILE, lines.slice(-MAX_LOG_LINES).join("\n") + "\n");
+  logLineCount++;
+
+  if (logLineCount > MAX_LOG_LINES) {
+    const lines = fs.readFileSync(LOG_FILE, "utf8").split("\n").filter(Boolean);
+    const trimmed = lines.slice(-MAX_LOG_LINES);
+    fs.writeFileSync(LOG_FILE, trimmed.join("\n") + "\n");
+    logLineCount = trimmed.length;
   }
 }
 
@@ -194,19 +202,25 @@ async function checkInactivityAndRoles(member, user) {
 // ===== USERNAME SYNC =====
 async function syncUsernames() {
   const [users] = await db.execute(`SELECT discord_id FROM users`);
+  const guild = client.guilds.cache.get(GUILD_ID);
+
+  let members;
+  try {
+    members = await guild.members.fetch();
+  } catch (e) {
+    console.error("Failed to fetch guild members for username sync:", e);
+    return;
+  }
+
   let synced = 0;
   for (const user of users) {
-    try {
-      const guild = client.guilds.cache.get(GUILD_ID);
-      const member = await guild.members.fetch(user.discord_id);
-      await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
-        member.displayName,
-        user.discord_id,
-      ]);
-      synced++;
-    } catch {
-      // Account deleted or not found — leave username as-is
-    }
+    const member = members.get(user.discord_id);
+    if (!member) continue;
+    await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
+      member.displayName,
+      user.discord_id,
+    ]);
+    synced++;
   }
   console.log(`✅ Synced usernames for ${synced}/${users.length} users`);
 }
@@ -246,7 +260,7 @@ const commands = [
       opt.setName("user").setDescription("User").setRequired(true),
     )
     .addIntegerOption((opt) =>
-      opt.setName("amount").setDescription("Amount").setRequired(true),
+      opt.setName("amount").setDescription("Amount").setRequired(true).setMinValue(1),
     ),
   new SlashCommandBuilder().setName("shop").setDescription("Open shop"),
 ].map((c) => c.toJSON());
@@ -254,9 +268,13 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-    body: commands,
-  });
+  try {
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+      body: commands,
+    });
+  } catch (e) {
+    console.error("Failed to register slash commands:", e);
+  }
 })();
 
 // ===== INTERACTIONS =====
@@ -281,58 +299,71 @@ client.on("interactionCreate", async (interaction) => {
         const item = items[0];
         if (!item) return interaction.reply({ content: "⛔ Item not found.", flags: MessageFlags.Ephemeral });
 
-        // 30-DAY COOLDOWN CHECK
-        if (user.last_purchase) {
-          const diffDays = daysSince(user.last_purchase);
-          if (diffDays < PURCHASE_COOLDOWN_DAYS) {
-            return interaction.reply({
-              content: `⛔ You can make one purchase every ${PURCHASE_COOLDOWN_DAYS} days.\nPlease wait ${Math.ceil(
-                PURCHASE_COOLDOWN_DAYS - diffDays,
-              )} more day(s).`,
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-        }
-
-        // LIFETIME CHECK
-        if (item.lifetime === 1) {
-          const [existing] = await db.execute(
-            `SELECT purchases.id 
-             FROM purchases
-             JOIN items ON purchases.item_id = items.id
-             WHERE purchases.user_id = ? 
-             AND items.category = ?
-             AND items.lifetime = 1
-             LIMIT 1`,
-            [user.id, item.category],
-          );
-
-          if (existing.length > 0) {
-            return interaction.reply({
-              content: `⛔ You already claimed your one-off ${item.category}.`,
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-        }
-
-        if (user.points < item.cost)
-          return interaction.reply({
-            content: "Not enough coins",
-            flags: MessageFlags.Ephemeral,
-          });
-
+        // All eligibility checks + the debit happen inside one locked
+        // transaction so two concurrent clicks can't both pass the checks
+        // (double-spend / double-claim a lifetime item).
         const conn = await db.getConnection();
+        let outcome;
         try {
           await conn.beginTransaction();
-          await conn.execute(
-            `UPDATE users SET points = points - ?, last_purchase = NOW() WHERE discord_id = ?`,
-            [item.cost, user.discord_id],
+
+          const [lockedRows] = await conn.execute(
+            `SELECT * FROM users WHERE discord_id = ? FOR UPDATE`,
+            [user.discord_id],
           );
-          await conn.execute(
-            `INSERT INTO purchases (user_id, item_id, date) VALUES (?, ?, NOW())`,
-            [user.id, item.id],
-          );
-          await conn.commit();
+          const lockedUser = lockedRows[0];
+
+          // 30-DAY COOLDOWN CHECK
+          if (lockedUser.last_purchase) {
+            const diffDays = daysSince(lockedUser.last_purchase);
+            if (diffDays < PURCHASE_COOLDOWN_DAYS) {
+              await conn.rollback();
+              outcome = {
+                reply: `⛔ You can make one purchase every ${PURCHASE_COOLDOWN_DAYS} days.\nPlease wait ${Math.ceil(
+                  PURCHASE_COOLDOWN_DAYS - diffDays,
+                )} more day(s).`,
+              };
+            }
+          }
+
+          // LIFETIME CHECK
+          if (!outcome && item.lifetime === 1) {
+            const [existing] = await conn.execute(
+              `SELECT purchases.id
+               FROM purchases
+               JOIN items ON purchases.item_id = items.id
+               WHERE purchases.user_id = ?
+               AND items.category = ?
+               AND items.lifetime = 1
+               LIMIT 1
+               FOR UPDATE`,
+              [lockedUser.id, item.category],
+            );
+
+            if (existing.length > 0) {
+              await conn.rollback();
+              outcome = { reply: `⛔ You already claimed your one-off ${item.category}.` };
+            }
+          }
+
+          if (!outcome) {
+            const [updateResult] = await conn.execute(
+              `UPDATE users SET points = points - ?, last_purchase = NOW() WHERE discord_id = ? AND points >= ?`,
+              [item.cost, lockedUser.discord_id, item.cost],
+            );
+
+            if (updateResult.affectedRows === 0) {
+              await conn.rollback();
+              outcome = { reply: "Not enough coins" };
+            } else {
+              await conn.execute(
+                `INSERT INTO purchases (user_id, item_id, date) VALUES (?, ?, NOW())`,
+                [lockedUser.id, item.id],
+              );
+              await conn.commit();
+              outcome = { success: true, remaining: lockedUser.points - item.cost };
+            }
+          }
         } catch (txErr) {
           await conn.rollback();
           throw txErr;
@@ -340,9 +371,11 @@ client.on("interactionCreate", async (interaction) => {
           conn.release();
         }
 
-        const [afterBuy] = await db.execute(`SELECT points FROM users WHERE discord_id = ?`, [user.discord_id]);
-        const remaining = afterBuy[0]?.points ?? "?";
-        console.log(`🛒 ${interaction.user.username} bought "${item.name}" for ${item.cost} coins (remaining: ${remaining})`);
+        if (!outcome.success) {
+          return interaction.reply({ content: outcome.reply, flags: MessageFlags.Ephemeral });
+        }
+
+        console.log(`🛒 ${interaction.user.username} bought "${item.name}" for ${item.cost} coins (remaining: ${outcome.remaining})`);
 
         await interaction.reply({
           content: `✅ Purchased ${item.name}`,
@@ -440,6 +473,7 @@ client.on("interactionCreate", async (interaction) => {
 
   // ===== SHOP =====
   if (interaction.commandName === "shop") {
+   try {
     let user = await getOrCreateUser(interaction.user.id);
     user = await checkInactivityAndRoles(member, user);
 
@@ -518,7 +552,11 @@ client.on("interactionCreate", async (interaction) => {
       if (row.components.length > 0) rows.push(row);
     }
 
-    interaction.reply({ embeds: [embed], components: rows, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ embeds: [embed], components: rows, flags: MessageFlags.Ephemeral });
+   } catch (e) {
+     console.error(e);
+     await interaction.reply({ content: "❌ Something broke.", flags: MessageFlags.Ephemeral }).catch(() => {});
+   }
   }
 
 });
@@ -529,13 +567,21 @@ async function auditAllUsers() {
   const [users] = await db.execute(`SELECT * FROM users WHERE points > 0`);
   let reset = 0;
 
+  let members;
+  try {
+    members = await guild.members.fetch();
+  } catch (e) {
+    console.error("Failed to fetch guild members for inactivity audit:", e);
+    return;
+  }
+
   for (const user of users) {
-    try {
-      const member = await guild.members.fetch(user.discord_id);
+    const member = members.get(user.discord_id);
+    if (member) {
       const before = user.points;
       await checkInactivityAndRoles(member, user);
       if (user.points !== before) reset++;
-    } catch {
+    } else {
       // Member left the server — reset their points
       const name = user.username || user.discord_id;
       console.log(`🔄 Reset ${name} — left the server (had ${user.points} coins)`);
@@ -561,6 +607,11 @@ client.once(Events.ClientReady, () => {
 
 // ===== WEB SERVER =====
 const app = express();
+
+const leaderboardTemplate = fs.readFileSync(
+  path.join(__dirname, "leaderboard.html"),
+  "utf8",
+);
 
 app.get("/", async (req, res) => {
   try {
@@ -590,8 +641,7 @@ app.get("/", async (req, res) => {
       )
       .join("");
 
-    const template = fs.readFileSync(path.join(__dirname, "leaderboard.html"), "utf8");
-    res.send(template.replace("{{ROWS}}", rowsHtml));
+    res.send(leaderboardTemplate.replace("{{ROWS}}", rowsHtml));
   } catch (e) {
     console.error(e);
     res.status(500).send("Error loading leaderboard");
@@ -609,5 +659,25 @@ app.get("/favicon.png", (_req, res) =>
 app.listen(WEB_PORT, () =>
   console.log(`🌐 Leaderboard at http://localhost:${WEB_PORT}`),
 );
+
+// ===== PROCESS SAFETY =====
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
+process.on("SIGINT", async () => {
+  console.log("🛑 Shutting down...");
+  try {
+    await db.end();
+  } catch (e) {
+    console.error("Error closing DB pool:", e);
+  }
+  client.destroy();
+  process.exit(0);
+});
 
 initDB().then(() => client.login(TOKEN));
