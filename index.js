@@ -200,17 +200,8 @@ async function checkInactivityAndRoles(member, user) {
 }
 
 // ===== USERNAME SYNC =====
-async function syncUsernames() {
+async function syncUsernames(members) {
   const [users] = await db.execute(`SELECT discord_id FROM users`);
-  const guild = client.guilds.cache.get(GUILD_ID);
-
-  let members;
-  try {
-    members = await guild.members.fetch();
-  } catch (e) {
-    console.error("Failed to fetch guild members for username sync:", e);
-    return;
-  }
 
   let synced = 0;
   for (const user of users) {
@@ -562,18 +553,9 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 // ===== INACTIVITY AUDIT =====
-async function auditAllUsers() {
-  const guild = client.guilds.cache.get(GUILD_ID);
+async function auditAllUsers(members) {
   const [users] = await db.execute(`SELECT * FROM users WHERE points > 0`);
   let reset = 0;
-
-  let members;
-  try {
-    members = await guild.members.fetch();
-  } catch (e) {
-    console.error("Failed to fetch guild members for inactivity audit:", e);
-    return;
-  }
 
   for (const user of users) {
     const member = members.get(user.discord_id);
@@ -595,14 +577,31 @@ async function auditAllUsers() {
   console.log(`🔍 Inactivity audit complete — reset ${reset}/${users.length} users`);
 }
 
+// ===== MEMBER-BACKED MAINTENANCE =====
+// Both syncUsernames and auditAllUsers need the full member list; sharing a
+// single fetch keeps us to one gateway "request guild members" call instead
+// of tripping Discord's rate limit with back-to-back requests.
+async function runMemberMaintenance() {
+  const guild = client.guilds.cache.get(GUILD_ID);
+  let members;
+  try {
+    members = await guild.members.fetch();
+  } catch (e) {
+    console.error("Failed to fetch guild members:", e);
+    return;
+  }
+
+  await syncUsernames(members);
+  await auditAllUsers(members);
+}
+
 // ===== START =====
 client.once(Events.ClientReady, () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
   updateStatus();
   setInterval(updateStatus, 1800000);
-  syncUsernames();
-  auditAllUsers();
-  setInterval(auditAllUsers, 86400000);
+  runMemberMaintenance();
+  setInterval(runMemberMaintenance, 86400000);
 });
 
 // ===== WEB SERVER =====
