@@ -390,6 +390,7 @@ client.on("interactionCreate", async (interaction) => {
         }
       } catch (e) {
         console.error(e);
+        await interaction.reply({ content: "❌ Something broke.", flags: MessageFlags.Ephemeral }).catch(() => {});
       }
     }
 
@@ -508,7 +509,7 @@ client.on("interactionCreate", async (interaction) => {
       desc += `**${cat.toUpperCase()}${isLifetimeCategory ? " (ONE OFF)" : ""}**\n`;
 
       grouped[cat].forEach((i) => {
-        desc += `• ${i.name} — ${i.cost}${i.lifetime ? " 🔒" : ""}\n`;
+        desc += `• ${i.name} — ${i.cost}\n`;
       });
       desc += "\n";
     }
