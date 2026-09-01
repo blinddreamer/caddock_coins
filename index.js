@@ -175,6 +175,12 @@ async function getOrCreateUser(discordId) {
   return newUser[0];
 }
 
+function logReset(message) {
+  console.log(message);
+  const channel = client.channels.cache.get(LOG_CHANNEL_ID);
+  if (channel) channel.send(message).catch((e) => console.error("Failed to send log message:", e));
+}
+
 async function checkInactivityAndRoles(member, user) {
   const name = user.username || user.discord_id;
 
@@ -183,7 +189,7 @@ async function checkInactivityAndRoles(member, user) {
       await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
         user.discord_id,
       ]);
-      console.log(`🔄 Reset ${name} — inactive for ${INACTIVE_DAYS}+ days (had ${user.points} coins)`);
+      logReset(`🔄 Reset ${name} — inactive for ${INACTIVE_DAYS}+ days (had ${user.points} coins)`);
       user.points = 0;
     }
   }
@@ -192,7 +198,7 @@ async function checkInactivityAndRoles(member, user) {
     await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
       user.discord_id,
     ]);
-    console.log(`🔄 Reset ${name} — missing required role (had ${user.points} coins)`);
+    logReset(`🔄 Reset ${name} — missing required role (had ${user.points} coins)`);
     user.points = 0;
   }
 
@@ -567,7 +573,7 @@ async function auditAllUsers(members) {
     } else {
       // Member left the server — reset their points
       const name = user.username || user.discord_id;
-      console.log(`🔄 Reset ${name} — left the server (had ${user.points} coins)`);
+      logReset(`🔄 Reset ${name} — left the server (had ${user.points} coins)`);
       await db.execute(`UPDATE users SET points = 0 WHERE discord_id = ?`, [
         user.discord_id,
       ]);
