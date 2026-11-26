@@ -4,3 +4,6 @@ yarn-error.log
 .env
 .git
 .gitignore
+logs
+.claude
+.github

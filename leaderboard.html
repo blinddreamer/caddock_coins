@@ -3,73 +3,61 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
   <meta http-equiv="refresh" content="3600">
-  <title>D-SCO Coins · Leaderboard</title>
+  <title>Deep Space Coalition | Leaderboard</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="https://d-sco.rocks/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <!-- Shared with d-sco.rocks: nav, menu, background, footer, stats all come from here -->
+  <link rel="stylesheet" href="https://d-sco.rocks/styles.css">
   <style>
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      background: transparent;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
     .content {
       position: relative;
-      z-index: 1;
       top: auto;
       left: auto;
       width: 100%;
+      max-width: 640px;
       margin: 0 auto;
       padding: 60px 20px 20px;
-      max-width: 640px;
       text-align: center;
     }
 
-    .content h1 {
-      margin-left: 0;
-    }
+    .content h1 { margin-left: 0; }
 
     .subtitle {
       font-size: 0.75rem;
       letter-spacing: 1.5px;
       text-transform: uppercase;
       color: #aaa;
-      margin-top: 0.4rem;
-      margin-left: 0;
+      margin: 0.4rem 0 0;
     }
 
     /* ── TABLE ── */
     .card {
       margin-top: 2rem;
-      margin-left: 0;
+      max-height: min(720px, calc(100dvh - 260px));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
       background: rgba(0, 0, 0, 0.75);
       border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 4px;
-      overflow: hidden;
     }
+    .card::-webkit-scrollbar { display: none; }
 
-    .card thead { display: table; width: 100%; table-layout: fixed; }
-    .card thead th:first-child  { width: 60px; }
-    .card thead th:last-child   { width: 120px; }
-    .card tbody {
-      display: block;
-      height: min(675px, calc(100dvh - 260px));
-      overflow-y: auto;
-      scrollbar-width: none;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
     }
-
-    .card tbody::-webkit-scrollbar { display: none; }
-    .card tbody tr { display: table; width: 100%; table-layout: fixed; }
-
-    table { width: 100%; border-collapse: collapse; }
-
-    thead tr { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 
     th {
+      position: sticky;
+      top: 0;
+      background: rgba(10, 10, 10, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       color: #aaa;
       text-align: left;
       padding: 14px 22px;
@@ -78,37 +66,31 @@
       text-transform: uppercase;
       font-weight: normal;
     }
-    th:last-child { text-align: right; }
+    th:first-child { width: 80px; }
+    th:last-child  { width: 120px; text-align: right; }
 
     tbody tr {
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       transition: background 0.15s ease;
     }
     tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
 
     td { padding: 13px 22px; }
 
-    .rank-cell { width: 60px; }
-    .points-cell { width: 120px; }
-
     .rank {
-      display: inline-block;
-      width: 26px;
-      text-align: center;
       font-size: 0.85rem;
-      color: #444;
+      color: #888;
       letter-spacing: 1px;
     }
-
     .rank.gold   { color: #c8a85a; }
-    .rank.silver { color: #a0a0a0; }
-    .rank.bronze { color: #a0602a; }
+    .rank.silver { color: #c0c0c0; }
+    .rank.bronze { color: #c07a3e; }
 
     .name {
       font-size: 0.9rem;
       color: #ccc;
       letter-spacing: 1px;
+      overflow-wrap: anywhere;
     }
 
     .points-cell { text-align: right; }
@@ -116,62 +98,59 @@
     .points {
       font-size: 0.9rem;
       font-family: 'Share Tech Mono', monospace;
-      color: white;
+      color: #fff;
       letter-spacing: 1.5px;
     }
 
-    /* ── CORP STATS ── */
-    #kb-stats {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      display: flex;
-      gap: 2rem;
-      padding: 0.5rem 2rem;
-      margin-bottom: 25px;
-      z-index: 10;
+    .empty {
+      text-align: center;
+      color: #888;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+      padding: 28px 22px;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
     }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 1024px) {
       html, body { height: auto; overflow-y: auto; }
       .content { padding: 100px 20px 80px; }
-      .card tbody { height: auto; max-height: calc(100dvh - 320px); }
+      .card { max-height: calc(100dvh - 320px); }
     }
 
     @media (max-width: 720px) {
       .content { padding: 80px 16px 70px; }
-      .card tbody { max-height: calc(100dvh - 220px); }
-      #kb-stats { display: none; }
+      .card { max-height: calc(100dvh - 220px); }
       td, th { padding: 10px 14px; }
+      th:first-child { width: 64px; }
+      th:last-child  { width: 96px; }
     }
   </style>
 </head>
 <body>
 
-  <div id="loader"><span>D-SCO</span></div>
-  <div id="scanlines"></div>
-  <div id="dots"></div>
-
-  <!-- MOBILE NAV OVERLAY -->
-  <div id="mobile-overlay">
-    <button id="mobile-close">&times;</button>
+  <!-- MOBILE NAV -->
+  <dialog id="mobile-overlay" aria-label="Menu">
+    <button id="mobile-close" type="button" aria-label="Close menu">&times;</button>
     <nav id="mobile-nav">
       <a href="https://d-sco.rocks/">Home</a>
       <a href="https://auth.d-sco.rocks/">Auth</a>
       <a href="https://wiki.d-sco.rocks/">Wiki</a>
       <a href="https://d-sco.rocks/news">News</a>
-      <a href="https://leaderboard.d-sco.rocks/">Leaderboard</a>
+      <a href="https://leaderboard.d-sco.rocks/" aria-current="page">Leaderboard</a>
       <a href="https://zkillboard.com/corporation/98519746/">Zkill</a>
     </nav>
-  </div>
+  </dialog>
 
   <nav class="navbar">
-    <button id="hamburger" aria-label="Open menu">
+    <button id="hamburger" type="button" aria-label="Open menu" aria-controls="mobile-overlay" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
     <div class="nav-links">
-      <a href="https://d-sco.rocks" class="purifier-link">
+      <a href="#" class="purifier-link" aria-label="Easter egg">
         <img src="https://d-sco.rocks/assets/purifier.png" alt="Purifier" class="purifier-icon" />
       </a>
       <span class="sep">|</span>
@@ -183,40 +162,43 @@
       <span class="sep">|</span>
       <a href="https://d-sco.rocks/news">News</a>
       <span class="sep">|</span>
-      <a href="https://leaderboard.d-sco.rocks/">Leaderboard</a>
+      <a href="https://leaderboard.d-sco.rocks/" aria-current="page">Leaderboard</a>
       <span class="sep">|</span>
       <a href="https://zkillboard.com/corporation/98519746/">Zkill</a>
     </div>
   </nav>
 
   <div class="easter-egg hidden">
-    <img src="https://d-sco.rocks/assets/logan.png" alt="CEO Killmail" />
+    <img src="https://d-sco.rocks/assets/logan.png" alt="CEO Killmail" loading="lazy" />
     <p>In the end, it wasn't the enemy that claimed him...</p>
   </div>
 
-  <video autoplay muted loop playsinline id="bg-video">
+  <!-- BACKGROUND -->
+  <video muted loop playsinline preload="none" id="bg-video">
     <source src="https://d-sco.rocks/assets/bg.mp4" type="video/mp4" />
   </video>
+  <div id="scanlines"></div>
+  <div id="dots"></div>
 
-  <div class="content">
-    <h1 data-text="Leaderboard">Leaderboard</h1>
-    <p class="subtitle">Refreshes every hour &middot; Top 25</p>
+  <main class="content">
+    <h1>Leaderboard</h1>
+    <p class="subtitle">Top 25 &middot; Updates hourly</p>
 
     <div class="card">
       <table>
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>Pilot</th>
-            <th>Coins</th>
+            <th scope="col">Rank</th>
+            <th scope="col">Pilot</th>
+            <th scope="col">Coins</th>
           </tr>
         </thead>
         <tbody>{{ROWS}}</tbody>
       </table>
     </div>
-  </div>
+  </main>
 
-  <div id="kb-stats">
+  <div class="corp-stats">
     <div class="stat">
       <span class="stat-label">Ships Killed</span>
       <span class="stat-value" id="stat-kills">—</span>
@@ -233,19 +215,23 @@
 
   <footer class="footer">
     <p>&copy; d-sco.rocks</p>
-    <p>EVE and related materials are trademarks of <a href="https://www.ccpgames.com/">CCP hf</a></p>
+    <p>EVE and related materials are trademarks of <a href="https://www.ccpgames.com/" target="_blank" rel="noopener noreferrer">CCP hf</a></p>
   </footer>
 
+  <!-- Same as d-sco.rocks: skip the video for reduced motion / data saver -->
+  <script>
+    (function () {
+      const video = document.getElementById("bg-video");
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const saveData = navigator.connection && navigator.connection.saveData;
+      if (reduce || saveData) return;
+      video.preload = "auto";
+      video.play().catch(() => {});
+    })();
+  </script>
   <script src="https://d-sco.rocks/menu.js"></script>
   <script src="https://d-sco.rocks/logan.js"></script>
   <script src="https://d-sco.rocks/stats.js"></script>
-  <script>
-    window.addEventListener('load', () => {
-      const loader = document.getElementById('loader');
-      loader.classList.add('loader-hide');
-      loader.addEventListener('transitionend', () => loader.remove());
-    });
-  </script>
 
 </body>
 </html>

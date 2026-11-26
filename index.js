@@ -18,6 +18,7 @@ const mysql = require("mysql2/promise");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const util = require("util");
 
 // ===== CONFIG =====
 const TOKEN = process.env.TOKEN;
@@ -47,7 +48,9 @@ function appendLog(line) {
   fs.appendFileSync(LOG_FILE, line + "\n");
   logLineCount++;
 
-  if (logLineCount > MAX_LOG_LINES) {
+  // Trim with headroom so we rewrite the file once per MAX_LOG_LINES lines,
+  // not on every single line once the cap is reached.
+  if (logLineCount > MAX_LOG_LINES * 2) {
     const lines = fs.readFileSync(LOG_FILE, "utf8").split("\n").filter(Boolean);
     const trimmed = lines.slice(-MAX_LOG_LINES);
     fs.writeFileSync(LOG_FILE, trimmed.join("\n") + "\n");
@@ -60,13 +63,12 @@ const rawConsoleError = console.error.bind(console);
 
 console.log = (...args) => {
   rawConsoleLog(...args);
-  appendLog(`[${new Date().toISOString()}] ${args.join(" ")}`);
+  appendLog(`[${new Date().toISOString()}] ${util.format(...args)}`);
 };
 
 console.error = (...args) => {
   rawConsoleError(...args);
-  const formatted = args.map((a) => (a instanceof Error ? a.stack : a)).join(" ");
-  appendLog(`[${new Date().toISOString()}] ERROR: ${formatted}`);
+  appendLog(`[${new Date().toISOString()}] ERROR: ${util.format(...args)}`);
 };
 
 const REQUIRED_ENV = ["TOKEN", "CLIENT_ID", "GUILD_ID", "REQUIRED_ROLE", "ADMIN_ROLE", "CHANNEL_ID", "DB_HOST", "DB_USER", "DB_PASS", "DB_NAME"];
@@ -162,8 +164,9 @@ async function getOrCreateUser(discordId) {
 
   if (rows.length) return rows[0];
 
+  // IGNORE: two concurrent first interactions must not crash on the UNIQUE key
   await db.execute(
-    `INSERT INTO users (discord_id, points, last_earned) VALUES (?, 0, NOW())`,
+    `INSERT IGNORE INTO users (discord_id, points, last_earned) VALUES (?, 0, NOW())`,
     [discordId],
   );
 
@@ -286,6 +289,10 @@ client.on("interactionCreate", async (interaction) => {
         const itemId = parseInt(interaction.customId.split("_")[1], 10);
         if (isNaN(itemId)) return interaction.reply({ content: "⛔ Invalid item.", flags: MessageFlags.Ephemeral });
 
+        // Ack within Discord's 3s window before the DB work; otherwise a slow
+        // transaction can charge the user while they see "interaction failed".
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
         let user = await getOrCreateUser(interaction.user.id);
         user = await checkInactivityAndRoles(member, user);
 
@@ -294,7 +301,7 @@ client.on("interactionCreate", async (interaction) => {
         ]);
 
         const item = items[0];
-        if (!item) return interaction.reply({ content: "⛔ Item not found.", flags: MessageFlags.Ephemeral });
+        if (!item) return interaction.editReply("⛔ Item not found.");
 
         // All eligibility checks + the debit happen inside one locked
         // transaction so two concurrent clicks can't both pass the checks
@@ -353,12 +360,16 @@ client.on("interactionCreate", async (interaction) => {
               await conn.rollback();
               outcome = { reply: "Not enough coins" };
             } else {
-              await conn.execute(
+              const [inserted] = await conn.execute(
                 `INSERT INTO purchases (user_id, item_id, date) VALUES (?, ?, NOW())`,
                 [lockedUser.id, item.id],
               );
               await conn.commit();
-              outcome = { success: true, remaining: lockedUser.points - item.cost };
+              outcome = {
+                success: true,
+                remaining: lockedUser.points - item.cost,
+                purchaseId: inserted.insertId,
+              };
             }
           }
         } catch (txErr) {
@@ -368,23 +379,18 @@ client.on("interactionCreate", async (interaction) => {
           conn.release();
         }
 
-        if (!outcome.success) {
-          return interaction.reply({ content: outcome.reply, flags: MessageFlags.Ephemeral });
-        }
+        if (!outcome.success) return interaction.editReply(outcome.reply);
 
         console.log(`🛒 ${interaction.user.username} bought "${item.name}" for ${item.cost} coins (remaining: ${outcome.remaining})`);
 
-        await interaction.reply({
-          content: `✅ Purchased ${item.name}`,
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.editReply(`✅ Purchased ${item.name}`);
 
         // ===== LOG CHANNEL =====
         const channel = client.channels.cache.get(LOG_CHANNEL_ID);
         if (channel) {
           const rowBtn = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId(`delivered_${user.id}_${item.id}`)
+              .setCustomId(`delivered_${outcome.purchaseId}`)
               .setLabel("Mark Delivered")
               .setStyle(ButtonStyle.Success),
           );
@@ -396,7 +402,11 @@ client.on("interactionCreate", async (interaction) => {
         }
       } catch (e) {
         console.error(e);
-        await interaction.reply({ content: "❌ Something broke.", flags: MessageFlags.Ephemeral }).catch(() => {});
+        const msg = "❌ Something broke.";
+        await (interaction.deferred
+          ? interaction.editReply(msg)
+          : interaction.reply({ content: msg, flags: MessageFlags.Ephemeral })
+        ).catch(() => {});
       }
     }
 
@@ -405,26 +415,42 @@ client.on("interactionCreate", async (interaction) => {
       if (!hasRole(member, ADMIN_ROLE))
         return interaction.reply({ content: "Nope.", flags: MessageFlags.Ephemeral });
 
-      const [, userIdStr, itemIdStr] = interaction.customId.split("_");
-      const userId = parseInt(userIdStr, 10);
-      const itemId = parseInt(itemIdStr, 10);
-      if (isNaN(userId) || isNaN(itemId))
-        return interaction.reply({ content: "⛔ Invalid data.", flags: MessageFlags.Ephemeral });
+      try {
+        const ids = interaction.customId.split("_").slice(1).map((n) => parseInt(n, 10));
+        if (!ids.length || ids.some((n) => isNaN(n)))
+          return interaction.reply({ content: "⛔ Invalid data.", flags: MessageFlags.Ephemeral });
 
-      await db.execute(
-        `UPDATE purchases SET delivered = 1 WHERE user_id = ? AND item_id = ?`,
-        [userId, itemId],
-      );
+        // New buttons carry the purchase id. Old buttons still in the log
+        // channel carry user_id + item_id: mark only the oldest undelivered
+        // match, not every purchase of that item by that user.
+        const [result] = ids.length === 1
+          ? await db.execute(
+              `UPDATE purchases SET delivered = 1 WHERE id = ? AND delivered = 0`,
+              ids,
+            )
+          : await db.execute(
+              `UPDATE purchases SET delivered = 1
+               WHERE user_id = ? AND item_id = ? AND delivered = 0
+               ORDER BY id LIMIT 1`,
+              ids.slice(0, 2),
+            );
 
-      // EDIT LOG MESSAGE
-      if (interaction.message) {
-        await interaction.message.edit({
-          content: `${interaction.message.content} ✅ Delivered`,
-          components: [],
-        });
+        if (result.affectedRows === 0)
+          return interaction.reply({ content: "Already delivered.", flags: MessageFlags.Ephemeral });
+
+        // EDIT LOG MESSAGE
+        if (interaction.message) {
+          await interaction.message.edit({
+            content: `${interaction.message.content} ✅ Delivered`,
+            components: [],
+          });
+        }
+
+        await interaction.reply({ content: "Marked delivered", flags: MessageFlags.Ephemeral });
+      } catch (e) {
+        console.error(e);
+        await interaction.reply({ content: "❌ Something broke.", flags: MessageFlags.Ephemeral }).catch(() => {});
       }
-
-      await interaction.reply({ content: "Marked delivered", flags: MessageFlags.Ephemeral });
     }
 
     return;
@@ -442,17 +468,14 @@ client.on("interactionCreate", async (interaction) => {
     try {
       const target = interaction.options.getMember("user");
       const amount = interaction.options.getInteger("amount");
+      if (!target) return interaction.editReply("⛔ That user isn't in this server.");
 
-      let user = await getOrCreateUser(target.id);
-
-      await db.execute(`UPDATE users SET username = ? WHERE discord_id = ?`, [
-        target.displayName,
-        target.id,
-      ]);
-
+      // One atomic upsert: creates the user if new, otherwise adds to balance.
       await db.execute(
-        `UPDATE users SET points = points + ?, last_earned = NOW() WHERE discord_id = ?`,
-        [amount, target.id],
+        `INSERT INTO users (discord_id, username, points, last_earned)
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE username = ?, points = points + ?, last_earned = NOW()`,
+        [target.id, target.displayName, amount, target.displayName, amount],
       );
 
       const [updated] = await db.execute(`SELECT points FROM users WHERE discord_id = ?`, [target.id]);
@@ -613,6 +636,7 @@ client.once(Events.ClientReady, () => {
 
 // ===== WEB SERVER =====
 const app = express();
+app.disable("x-powered-by");
 
 const leaderboardTemplate = fs.readFileSync(
   path.join(__dirname, "leaderboard.html"),
@@ -625,28 +649,26 @@ app.get("/", async (req, res) => {
       `SELECT username, discord_id, points FROM users WHERE points > 0 ORDER BY points DESC LIMIT 25`,
     );
 
-    const rowClass = (i) =>
-      i === 0 ? "top-1" : i === 1 ? "top-2" : i === 2 ? "top-3" : "";
+    const medal = ["gold", "silver", "bronze"];
 
-    const rankLabel = (i) => {
-      const num = String(i + 1).padStart(2, "0");
-      if (i === 0) return `<span class="rank gold">${num}</span>`;
-      if (i === 1) return `<span class="rank silver">${num}</span>`;
-      if (i === 2) return `<span class="rank bronze">${num}</span>`;
-      return `<span class="rank">${num}</span>`;
-    };
-
-    const rowsHtml = rows
-      .map(
-        (r, i) => `
-        <tr class="${rowClass(i)}">
-          <td class="rank-cell">${rankLabel(i)}</td>
+    const rowsHtml = rows.length
+      ? rows
+          .map(
+            (r, i) => `
+        <tr>
+          <td><span class="rank ${medal[i] || ""}">${String(i + 1).padStart(2, "0")}</span></td>
           <td class="name">${escapeHtml(r.username || "Unknown Pilot")}</td>
-          <td class="points-cell"><span class="points">${r.points}</span></td>
+          <td class="points-cell"><span class="points">${r.points.toLocaleString("en-US")}</span></td>
         </tr>`,
-      )
-      .join("");
+          )
+          .join("")
+      : `<tr><td colspan="3" class="empty">No coins earned yet.</td></tr>`;
 
+    res.set({
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "SAMEORIGIN",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+    });
     res.send(leaderboardTemplate.replace("{{ROWS}}", rowsHtml));
   } catch (e) {
     console.error(e);
@@ -675,7 +697,8 @@ process.on("uncaughtException", (err) => {
   console.error("Uncaught exception:", err);
 });
 
-process.on("SIGINT", async () => {
+// SIGTERM is what `docker stop` sends; as PID 1, node ignores it unless handled.
+async function shutdown() {
   console.log("🛑 Shutting down...");
   try {
     await db.end();
@@ -684,6 +707,8 @@ process.on("SIGINT", async () => {
   }
   client.destroy();
   process.exit(0);
-});
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 initDB().then(() => client.login(TOKEN));
