@@ -13,6 +13,11 @@
   <!-- Shared with d-sco.rocks: nav, menu, background, footer, stats all come from here -->
   <link rel="stylesheet" href="https://d-sco.rocks/styles.css">
   <style>
+    /* Site CSS makes body a shrink-wrapped flex item with a dark background;
+       on this page body has in-flow content, so that paints a dark column
+       over the video. html keeps the dark canvas. */
+    body { background: transparent; }
+
     .content {
       position: relative;
       top: auto;
@@ -75,7 +80,7 @@
     }
     tbody tr:last-child { border-bottom: none; }
 
-    td { padding: 13px 22px; }
+    td { padding: 13px 22px; text-align: left; }
 
     .rank {
       font-size: 0.85rem;
